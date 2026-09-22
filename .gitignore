@@ -1,0 +1,12 @@
+venv/
+.venv-win/
+__pycache__/
+*.pyc
+
+uploads/
+users.json
+mo_activity.json
+
+*.log
+
+.DS_Store
