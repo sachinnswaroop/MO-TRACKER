@@ -21,11 +21,11 @@ export function AppShell() {
   if (!me) return null;
 
   return (
-    <div className="min-h-screen bg-ink-50">
+    <div className="min-h-screen bg-ink-50 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(113,89,242,0.08),transparent)]">
       <Sidebar me={me} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <div className="md:pl-72">
         <Topbar me={me} noticeCount={data?.items.length ?? 0} onMenuClick={() => setSidebarOpen((v) => !v)} />
-        <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
+        <main className="mx-auto max-w-[1500px] animate-fade-in px-4 py-6 sm:px-6 sm:py-8">
           <Outlet />
         </main>
       </div>

@@ -2,40 +2,48 @@
 
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", -apple-system, sans-serif;
 
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  --color-brand-50: #f1f0ff;
+  --color-brand-100: #e4e1ff;
+  --color-brand-200: #cbc5ff;
+  --color-brand-300: #a99ffd;
+  --color-brand-400: #8b7bfa;
+  --color-brand-500: #7159f2;
+  --color-brand-600: #5f3fe0;
+  --color-brand-700: #4f31c2;
+  --color-brand-800: #3f2999;
+  --color-brand-900: #2e2073;
 
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
+  --color-accent-400: #ff8fb1;
+  --color-accent-500: #f8628f;
 
-  --color-success-50: #ecfdf5;
-  --color-success-500: #10b981;
-  --color-success-600: #059669;
+  --color-ink-50: #f8f9fc;
+  --color-ink-100: #f0f1f8;
+  --color-ink-200: #e3e5f0;
+  --color-ink-300: #cbcede;
+  --color-ink-400: #9698b3;
+  --color-ink-500: #6c6e8a;
+  --color-ink-600: #4d4f6b;
+  --color-ink-700: #34364f;
+  --color-ink-800: #1f2038;
+  --color-ink-900: #121327;
 
-  --color-warning-50: #fffbeb;
-  --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
+  --color-success-50: #eafbf3;
+  --color-success-500: #16b581;
+  --color-success-600: #0e9c6d;
 
-  --color-danger-50: #fef2f2;
-  --color-danger-500: #ef4444;
-  --color-danger-600: #dc2626;
+  --color-warning-50: #fff8eb;
+  --color-warning-500: #f5a524;
+  --color-warning-600: #dc8c0f;
+
+  --color-danger-50: #fef1f3;
+  --color-danger-500: #f0466f;
+  --color-danger-600: #d92f59;
+
+  --shadow-soft: 0 1px 2px rgba(30, 27, 75, 0.04), 0 8px 24px -8px rgba(30, 27, 75, 0.10);
+  --shadow-brand: 0 8px 24px -6px rgba(95, 63, 224, 0.35);
+  --shadow-lift: 0 1px 2px rgba(30, 27, 75, 0.05), 0 16px 32px -12px rgba(30, 27, 75, 0.18);
 }
 
 html, body, #root {
@@ -44,4 +52,31 @@ html, body, #root {
 
 body {
   @apply bg-ink-50 text-ink-800 antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: var(--color-brand-200);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-ink-300);
+  border-radius: 999px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
 }

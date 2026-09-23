@@ -29,16 +29,16 @@ function defaultRender(key: string, value: unknown): React.ReactNode {
 export function DataTable({ columns, rows }: { columns: Column[]; rows: TableRows }) {
   if (!rows?.length) return <EmptyState>No records for the selected period.</EmptyState>;
   return (
-    <div className="overflow-x-auto rounded-xl border border-ink-200">
+    <div className="scrollbar-thin overflow-x-auto rounded-2xl border border-ink-200/70">
       <table className="w-full min-w-max border-collapse text-sm">
         <thead>
-          <tr className="bg-ink-50">
+          <tr className="bg-ink-50/80">
             {columns.map((c) => {
               const numeric = c.key.toLowerCase().match(/amount|amt|pct|no\.?$|number|leads|converted|pending|rejected|target|achi/);
               return (
                 <th
                   key={c.key}
-                  className={`sticky top-0 whitespace-nowrap border-b border-ink-200 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-500 ${
+                  className={`sticky top-0 whitespace-nowrap border-b border-ink-200/70 px-3.5 py-3 text-[10.5px] font-bold uppercase tracking-wider text-ink-400 ${
                     numeric ? "text-right" : "text-left"
                   }`}
                 >
@@ -50,13 +50,13 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: TableRow
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-ink-100 last:border-0 even:bg-ink-50/40 hover:bg-brand-50/40">
+            <tr key={i} className="border-b border-ink-100 transition-colors last:border-0 even:bg-ink-50/30 hover:bg-brand-50/50">
               {columns.map((c) => {
                 const numeric = c.key.toLowerCase().match(/amount|amt|pct|no\.?$|number|leads|converted|pending|rejected|target|achi/);
                 return (
                   <td
                     key={c.key}
-                    className={`whitespace-nowrap px-3 py-2 text-ink-700 ${numeric ? "text-right tabular-nums" : "text-left"}`}
+                    className={`whitespace-nowrap px-3.5 py-2.5 text-ink-700 ${numeric ? "text-right font-medium tabular-nums" : "text-left"}`}
                   >
                     {c.render ? c.render(row[c.key], row) : defaultRender(c.key, row[c.key])}
                   </td>

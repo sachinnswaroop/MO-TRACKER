@@ -72,12 +72,18 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-5 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-white p-6">
-        <h1 className="text-2xl font-extrabold text-brand-800 sm:text-3xl">
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2073] via-[#4f31c2] to-[#7159f2] p-6 text-white sm:p-7">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-accent-400/20 blur-3xl" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+        />
+        <h1 className="font-display relative z-10 text-2xl font-extrabold sm:text-3xl">
           Good day, <span>{me?.mo_name || me?.username}</span>
         </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Here's your marketing performance at a glance • <b className="text-ink-700">{periodLabel}</b>
+        <p className="relative z-10 mt-1.5 text-sm text-white/75">
+          Here's your marketing performance at a glance • <b className="text-white">{periodLabel}</b>
         </p>
       </div>
 
