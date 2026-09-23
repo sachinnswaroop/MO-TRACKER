@@ -736,8 +736,8 @@ async def me(request: Request):
 @app.get("/api/state")
 async def state(request: Request):
     if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
-    if DATA["df"] is None: return {"loaded":False,"filename":None,"rows":0,"report_date":None}
-    return {"loaded":True,"filename":DATA["filename"],"rows":len(DATA["df"]),"report_date":DATA["df"]["AssignedDate"].max().strftime("%Y-%m-%d"),"last_updated":DATA.get("last_updated")}
+    if DATA["df"] is None: return {"loaded":False,"filename":None,"rows":0,"date_from":None,"report_date":None}
+    return {"loaded":True,"filename":DATA["filename"],"rows":len(DATA["df"]),"date_from":DATA["df"]["AssignedDate"].min().strftime("%Y-%m-%d"),"report_date":DATA["df"]["AssignedDate"].max().strftime("%Y-%m-%d"),"last_updated":DATA.get("last_updated")}
 
 @app.post("/api/upload")
 async def upload(request: Request,file:UploadFile=File(...)):
@@ -748,6 +748,13 @@ async def upload(request: Request,file:UploadFile=File(...)):
     db.save_upload(file.filename, file_bytes)
     DATA["df"]=df; DATA["filename"]=file.filename; DATA["last_updated"] = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p")
     return {"ok":True,"filename":file.filename,"rows":len(df),"columns":len(df.columns),"report_date":df["AssignedDate"].max().strftime("%Y-%m-%d"),"last_updated":DATA["last_updated"]}
+
+@app.post("/api/upload/clear")
+async def clear_upload(request: Request):
+    if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
+    db.clear_upload()
+    DATA["df"]=None; DATA["filename"]=None; DATA["last_updated"]=None
+    return {"ok":True}
 
 @app.get("/api/report")
 async def report(request:Request,mode:str="monthly",report_date:str|None=None,region:str="All Regions",product:str="All Products",mo:str="All Officers",branch:str="All Branches"):

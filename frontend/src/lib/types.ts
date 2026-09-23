@@ -15,6 +15,7 @@ export interface AppState {
   loaded: boolean;
   filename: string | null;
   rows: number;
+  date_from: string | null;
   report_date: string | null;
   last_updated?: string | null;
 }

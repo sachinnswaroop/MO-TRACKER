@@ -90,3 +90,11 @@ def save_upload(filename: str, file_bytes: bytes) -> dict:
     row = {"id": 1, "filename": filename, "storage_path": UPLOAD_STORAGE_PATH}
     result = supabase.table("current_upload").upsert(row, on_conflict="id").execute()
     return result.data[0]
+
+
+def clear_upload():
+    supabase.table("current_upload").delete().eq("id", 1).execute()
+    try:
+        supabase.storage.from_(UPLOAD_BUCKET).remove([UPLOAD_STORAGE_PATH])
+    except Exception:
+        pass
