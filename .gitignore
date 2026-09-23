@@ -10,3 +10,10 @@ mo_activity.json
 *.log
 
 .DS_Store
+
+.vercel
+.env
+.env.local
+.env*.local
+!.env.example
+supabase/.temp/

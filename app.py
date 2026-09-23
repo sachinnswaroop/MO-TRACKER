@@ -4,21 +4,17 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import pandas as pd
-import os, json, io
+import os, io
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-USERS_FILE = os.path.join(BASE_DIR, "users.json")
-TARGETS_FILE = os.path.join(BASE_DIR, "targets.json")
-ACTIVITY_FILE = os.path.join(BASE_DIR, "mo_activity.json")
 
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -98,42 +94,14 @@ MONTHLY_TARGETS = {
 
 DATA = {"df": None, "filename": None, "last_updated": None}
 def activity_store():
-    return load_json(ACTIVITY_FILE, {"tour_plans": [], "tour_reports": [], "co_reports": []})
-
-def save_activity_store(obj):
-    save_json(ACTIVITY_FILE, obj)
+    return db.fetch_activity_store()
 
 def role_is_mo(request):
     return request.session.get("role") == "mo"
 
 
-def load_json(path, default):
-    if not os.path.exists(path):
-        save_json(path, default)
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as f: return json.load(f)
-    except Exception: return default
-
-
-def save_json(path, obj):
-    with open(path, "w", encoding="utf-8") as f: json.dump(obj, f, indent=2)
-
-
 def users():
-    current = load_json(USERS_FILE, {})
-    changed = False
-    defaults = build_default_users()
-    if "user" in current:
-        del current["user"]
-        changed = True
-    for uid, info in defaults.items():
-        if uid not in current:
-            current[uid] = info
-            changed = True
-    if changed or not os.path.exists(USERS_FILE):
-        save_json(USERS_FILE, current)
-    return current
+    return db.seed_missing_users(build_default_users())
 
 
 def clean_text(v):
@@ -178,11 +146,13 @@ def prepare_df(path):
 
 
 def load_latest_upload():
-    files = [os.path.join(UPLOAD_DIR, n) for n in os.listdir(UPLOAD_DIR) if n.lower().endswith((".xlsx", ".xls"))]
-    if not files: return
-    path = max(files, key=os.path.getmtime)
+    row = db.get_current_upload()
+    if not row: return
     try:
-        DATA["df"] = prepare_df(path); DATA["filename"] = os.path.basename(path); DATA["last_updated"] = datetime.fromtimestamp(os.path.getmtime(path), tz=ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p")
+        file_bytes = db.download_current_upload_bytes(row["storage_path"])
+        DATA["df"] = prepare_df(io.BytesIO(file_bytes))
+        DATA["filename"] = row["filename"]
+        DATA["last_updated"] = pd.Timestamp(row["last_updated"]).tz_convert(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p")
     except Exception: DATA["df"] = None; DATA["filename"] = None
 
 load_latest_upload()
@@ -782,10 +752,10 @@ async def state(request: Request):
 @app.post("/api/upload")
 async def upload(request: Request,file:UploadFile=File(...)):
     if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
-    path=os.path.join(UPLOAD_DIR,file.filename)
-    with open(path,"wb") as f: f.write(await file.read())
-    try: df=prepare_df(path)
+    file_bytes=await file.read()
+    try: df=prepare_df(io.BytesIO(file_bytes))
     except Exception as e: return JSONResponse({"detail":str(e)},status_code=400)
+    db.save_upload(file.filename, file_bytes)
     DATA["df"]=df; DATA["filename"]=file.filename; DATA["last_updated"] = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p")
     return {"ok":True,"filename":file.filename,"rows":len(df),"columns":len(df.columns),"report_date":df["AssignedDate"].max().strftime("%Y-%m-%d"),"last_updated":DATA["last_updated"]}
 
@@ -1134,8 +1104,8 @@ async def save_tour_plan(request:Request):
     category=str(d.get("category","")); text=str(d.get("plan",""))[:2000]
     if category=="GVB": category="Govt. Business"
     if category not in {"Liability","Loans","Govt. Business","3rd Party"}: return JSONResponse({"detail":"Invalid tour category."},status_code=400)
-    store=activity_store(); store["tour_plans"]=[x for x in store["tour_plans"] if not (x.get("user_id")==request.session["username"] and x.get("date")==date and x.get("category")==category)]
-    store["tour_plans"].append({"user_id":request.session["username"],"mo_name":users()[request.session["username"]].get("mo_name",request.session["username"]),"date":date,"category":category,"plan":text,"created_at":datetime.now().isoformat(timespec="seconds")}); save_activity_store(store); return {"ok":True}
+    uid=request.session["username"]
+    db.upsert_tour_plan({"user_id":uid,"mo_name":users()[uid].get("mo_name",uid),"date":date,"category":category,"plan":text}); return {"ok":True}
 
 @app.post("/api/activity/tour-report")
 async def save_tour_report(request:Request):
@@ -1150,14 +1120,14 @@ async def save_tour_report(request:Request):
         if (n>0 and a<=0) or (a>0 and n<=0):
             return JSONResponse({"detail":f"{label}: Lead Number and Lead Amount must both be greater than 0, or both be 0."},status_code=400)
     item={"user_id":request.session["username"],"date":date,"home_loan_no":int(float(d.get("home_loan_no",0) or 0)),"home_loan_amt":float(d.get("home_loan_amt",0) or 0),"vehicle_loan_no":int(float(d.get("vehicle_loan_no",0) or 0)),"vehicle_loan_amt":float(d.get("vehicle_loan_amt",0) or 0),"other_retail_no":int(float(d.get("other_retail_no",0) or 0)),"other_retail_amt":float(d.get("other_retail_amt",0) or 0),"builder_tieup":int(float(d.get("builder_tieup",0) or 0)),"dealer_tieup":int(float(d.get("dealer_tieup",0) or 0)),"deposits_no":int(float(d.get("deposits_no",0) or 0)),"deposits_amt":float(d.get("deposits_amt",0) or 0),"third_party_no":int(float(d.get("third_party_no",0) or 0)),"third_party_amt":float(d.get("third_party_amt",0) or 0)}
-    store=activity_store(); store["tour_reports"]=[x for x in store["tour_reports"] if not (x.get("user_id")==item["user_id"] and x.get("date")==date)]; store["tour_reports"].append(item); save_activity_store(store); return {"ok":True}
+    db.upsert_tour_report(item); return {"ok":True}
 
 @app.post("/api/activity/co-report")
 async def save_co_activity(request:Request):
     if not role_is_mo(request): return JSONResponse({"detail":"MO access required."},status_code=403)
     d=await request.json(); date=str(d.get("date",""));
     item={"user_id":request.session["username"],"date":date,"lms":str(d.get("lms","No")),"google_form":str(d.get("google_form","No"))}
-    store=activity_store(); store["co_reports"]=[x for x in store["co_reports"] if not (x.get("user_id")==item["user_id"] and x.get("date")==date)]; store["co_reports"].append(item); save_activity_store(store); return {"ok":True}
+    db.upsert_co_report(item); return {"ok":True}
 
 @app.get("/api/targets")
 async def targets(request:Request):
@@ -1251,7 +1221,7 @@ async def change_password(request:Request):
     if us[u]["password"]!=str(d.get("old_password","")): return JSONResponse({"detail":"Current password is incorrect."},status_code=400)
     new=str(d.get("new_password",""));
     if len(new)<4: return JSONResponse({"detail":"Password must contain at least 4 characters."},status_code=400)
-    us[u]["password"]=new; save_json(USERS_FILE,us); return {"ok":True}
+    db.update_user_password(u,new); return {"ok":True}
 
 @app.get("/api/users")
 async def list_users(request:Request):
@@ -1264,4 +1234,4 @@ async def reset_user_password(request:Request):
     d=await request.json(); uid=str(d.get("user_id","")); new=str(d.get("new_password","")); us=users()
     if uid not in us: return JSONResponse({"detail":"User not found."},status_code=404)
     if len(new)<4: return JSONResponse({"detail":"Password must contain at least 4 characters."},status_code=400)
-    us[uid]["password"]=new; save_json(USERS_FILE,us); return {"ok":True}
+    db.update_user_password(uid,new); return {"ok":True}
