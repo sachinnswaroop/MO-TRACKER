@@ -44,7 +44,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <nav className="scrollbar-thin relative z-10 flex flex-1 flex-col gap-1 overflow-y-auto">
+        <nav className="scrollbar-thin-dark relative z-10 flex flex-1 flex-col gap-1 overflow-y-auto">
           {items.map((item) => (
             <NavLink
               key={item.to}
