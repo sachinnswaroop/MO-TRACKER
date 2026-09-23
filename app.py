@@ -1,7 +1,5 @@
 from fastapi import FastAPI, Request, UploadFile, File
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, Response
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse, Response, FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 import pandas as pd
 import os, io
@@ -10,16 +8,10 @@ from zoneinfo import ZoneInfo
 import db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-
-os.makedirs(STATIC_DIR, exist_ok=True)
-os.makedirs(TEMPLATES_DIR, exist_ok=True)
+FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("APP_SECRET", "local-marketing-report-secret"))
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 DEFAULT_USERS = {
     "admin": {"password": "admin@123", "role": "admin", "name": "Administrator"},
@@ -725,8 +717,6 @@ def pdf_table_report(report_type,data):
     return _simple_table_pdf(titles.get(report_type,"Marketing Tracker Report"),subtitle,columns,rows,widths)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request): return templates.TemplateResponse(request=request,name="index.html",context={})
 
 @app.post("/api/login")
 async def login(request: Request):
@@ -1235,3 +1225,15 @@ async def reset_user_password(request:Request):
     if uid not in us: return JSONResponse({"detail":"User not found."},status_code=404)
     if len(new)<4: return JSONResponse({"detail":"Password must contain at least 4 characters."},status_code=400)
     db.update_user_password(uid,new); return {"ok":True}
+
+
+# Serves the built React SPA (frontend/dist). Registered last so it never
+# shadows the /api and /download routes above: a real file under dist/ is
+# served as-is (JS/CSS chunks, the logo, favicon); any other path falls back
+# to index.html so React Router can handle client-side routes on refresh/deep-link.
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa(full_path: str):
+    candidate = os.path.realpath(os.path.join(FRONTEND_DIST, full_path))
+    if full_path and candidate.startswith(FRONTEND_DIST + os.sep) and os.path.isfile(candidate):
+        return FileResponse(candidate)
+    return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
