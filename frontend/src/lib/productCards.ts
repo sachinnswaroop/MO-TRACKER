@@ -16,20 +16,21 @@ export interface ProductCardDef {
   key: string;
   name: string;
   icon: LucideIcon;
-  gradient: string;
+  /** Tailwind classes for the icon chip background + icon color. */
+  accent: string;
 }
 
 export const productCards: ProductCardDef[] = [
-  { key: "Savings", name: "Savings Account", icon: PiggyBank, gradient: "from-sky-500 to-blue-600" },
-  { key: "Current", name: "Current Account", icon: Landmark, gradient: "from-amber-400 to-yellow-500" },
-  { key: "Salary", name: "Salary Account", icon: Wallet, gradient: "from-rose-400 to-pink-500" },
-  { key: "Home Loan", name: "Home Loan", icon: Home, gradient: "from-white to-white" },
-  { key: "Vehicle Loan", name: "Vehicle Loan", icon: Car, gradient: "from-white to-white" },
-  { key: "Education/Personal Loan", name: "Education/Personal Loan", icon: GraduationCap, gradient: "from-white to-white" },
-  { key: "Retails", name: "Retail Loan", icon: Store, gradient: "from-rose-50 to-rose-50" },
-  { key: "MSME", name: "MSME", icon: Building2, gradient: "from-indigo-50 to-indigo-50" },
-  { key: "Agriculture", name: "Agriculture", icon: Wheat, gradient: "from-indigo-50 to-indigo-50" },
-  { key: "Insurance", name: "Insurance", icon: ShieldCheck, gradient: "from-indigo-50 to-indigo-50" },
+  { key: "Savings", name: "Savings Account", icon: PiggyBank, accent: "bg-blue-50 text-blue-600" },
+  { key: "Current", name: "Current Account", icon: Landmark, accent: "bg-amber-50 text-amber-600" },
+  { key: "Salary", name: "Salary Account", icon: Wallet, accent: "bg-rose-50 text-rose-600" },
+  { key: "Home Loan", name: "Home Loan", icon: Home, accent: "bg-indigo-50 text-indigo-600" },
+  { key: "Vehicle Loan", name: "Vehicle Loan", icon: Car, accent: "bg-teal-50 text-teal-600" },
+  { key: "Education/Personal Loan", name: "Education/Personal Loan", icon: GraduationCap, accent: "bg-violet-50 text-violet-600" },
+  { key: "Retails", name: "Retail Loan", icon: Store, accent: "bg-orange-50 text-orange-600" },
+  { key: "MSME", name: "MSME", icon: Building2, accent: "bg-slate-100 text-slate-600" },
+  { key: "Agriculture", name: "Agriculture", icon: Wheat, accent: "bg-green-50 text-green-600" },
+  { key: "Insurance", name: "Insurance", icon: ShieldCheck, accent: "bg-pink-50 text-pink-600" },
 ];
 
 export const chartColors: Record<string, string> = {

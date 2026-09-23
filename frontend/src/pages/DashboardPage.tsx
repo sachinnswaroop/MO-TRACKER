@@ -72,11 +72,11 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2073] via-[#4f31c2] to-[#7159f2] p-6 text-white sm:p-7">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-accent-400/20 blur-3xl" />
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-charcoal-800 to-charcoal-900 p-6 text-white sm:p-7">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-brand-500/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-brand-400/10 blur-3xl" />
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
         />
         <h1 className="font-display relative z-10 text-2xl font-extrabold sm:text-3xl">

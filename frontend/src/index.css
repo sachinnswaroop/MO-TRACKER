@@ -4,30 +4,34 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", "Inter", -apple-system, sans-serif;
 
-  --color-brand-50: #f1f0ff;
-  --color-brand-100: #e4e1ff;
-  --color-brand-200: #cbc5ff;
-  --color-brand-300: #a99ffd;
-  --color-brand-400: #8b7bfa;
-  --color-brand-500: #7159f2;
-  --color-brand-600: #5f3fe0;
-  --color-brand-700: #4f31c2;
-  --color-brand-800: #3f2999;
-  --color-brand-900: #2e2073;
+  /* Primary accent: a clean, modern blue — used sparingly (buttons, active
+     states, links), not as a wash across large surfaces. */
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dce8ff;
+  --color-brand-200: #b7d1ff;
+  --color-brand-300: #85b1ff;
+  --color-brand-400: #4f8bff;
+  --color-brand-500: #2f6bf0;
+  --color-brand-600: #1d54d6;
+  --color-brand-700: #1a44ab;
+  --color-brand-800: #17398a;
+  --color-brand-900: #142e6e;
 
-  --color-accent-400: #ff8fb1;
-  --color-accent-500: #f8628f;
+  /* Dark neutral used for chrome surfaces (sidebar, hero, login panel) —
+     near-black navy, not a saturated hue. */
+  --color-charcoal-800: #161b28;
+  --color-charcoal-900: #0c0f18;
 
   --color-ink-50: #f8f9fc;
-  --color-ink-100: #f0f1f8;
-  --color-ink-200: #e3e5f0;
-  --color-ink-300: #cbcede;
-  --color-ink-400: #9698b3;
-  --color-ink-500: #6c6e8a;
-  --color-ink-600: #4d4f6b;
-  --color-ink-700: #34364f;
-  --color-ink-800: #1f2038;
-  --color-ink-900: #121327;
+  --color-ink-100: #f0f1f6;
+  --color-ink-200: #e3e5ee;
+  --color-ink-300: #cbcedb;
+  --color-ink-400: #979aad;
+  --color-ink-500: #6c6f85;
+  --color-ink-600: #4d4f68;
+  --color-ink-700: #34364a;
+  --color-ink-800: #1f2030;
+  --color-ink-900: #121320;
 
   --color-success-50: #eafbf3;
   --color-success-500: #16b581;
@@ -41,9 +45,9 @@
   --color-danger-500: #f0466f;
   --color-danger-600: #d92f59;
 
-  --shadow-soft: 0 1px 2px rgba(30, 27, 75, 0.04), 0 8px 24px -8px rgba(30, 27, 75, 0.10);
-  --shadow-brand: 0 8px 24px -6px rgba(95, 63, 224, 0.35);
-  --shadow-lift: 0 1px 2px rgba(30, 27, 75, 0.05), 0 16px 32px -12px rgba(30, 27, 75, 0.18);
+  --shadow-soft: 0 1px 2px rgba(15, 20, 40, 0.04), 0 8px 24px -8px rgba(15, 20, 40, 0.10);
+  --shadow-brand: 0 8px 22px -6px rgba(47, 107, 240, 0.35);
+  --shadow-lift: 0 1px 2px rgba(15, 20, 40, 0.05), 0 16px 32px -12px rgba(15, 20, 40, 0.16);
 }
 
 html, body, #root {

@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { Input } from "../components/ui/Field";
 import { Button } from "../components/ui/Button";
 import { Alert } from "../components/ui/Feedback";
+import { Logo } from "../components/Logo";
 import { ApiError } from "../lib/api";
 
 const HIGHLIGHTS = [
@@ -38,11 +39,11 @@ export function LoginPage() {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#2e2073] via-[#4f31c2] to-[#7159f2] p-12 text-white lg:flex">
-        <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-6rem] right-[-4rem] h-96 w-96 rounded-full bg-accent-400/25 blur-3xl" />
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-b from-charcoal-800 to-charcoal-900 p-12 text-white lg:flex">
+        <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-brand-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-[-6rem] right-[-4rem] h-96 w-96 rounded-full bg-brand-500/10 blur-3xl" />
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{
             backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
             backgroundSize: "28px 28px",
@@ -50,15 +51,10 @@ export function LoginPage() {
         />
 
         <div className="relative z-10 flex items-center gap-3">
-          <img
-            src="/mo_tracker_mark.png"
-            alt="MO Tracker"
-            className="h-12 w-12 rounded-2xl bg-white object-cover shadow-xl"
-            onError={(e) => (e.currentTarget.style.display = "none")}
-          />
+          <Logo size={48} />
           <div>
             <div className="font-display text-xl font-extrabold">MO Tracker</div>
-            <div className="text-xs text-white/70">Central Bank of India</div>
+            <div className="text-xs text-white/60">Central Bank of India</div>
           </div>
         </div>
 
@@ -68,35 +64,30 @@ export function LoginPage() {
             <br />
             all in one place.
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-white/75">
+          <p className="mt-4 text-[15px] leading-relaxed text-white/60">
             Track leads, conversions and daily field activity for the Bhopal CAC marketing team — built for
             officers and admins alike.
           </p>
           <div className="mt-9 space-y-4">
             {HIGHLIGHTS.map((h) => (
               <div key={h.text} className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/12 ring-1 ring-white/15">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/8 text-brand-300 ring-1 ring-white/10">
                   <h.icon size={16} />
                 </span>
-                <span className="text-sm text-white/85">{h.text}</span>
+                <span className="text-sm text-white/75">{h.text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative z-10 text-xs text-white/45">@Copyright, CAC, Bhopal</div>
+        <div className="relative z-10 text-xs text-white/35">@Copyright, CAC, Bhopal</div>
       </div>
 
       {/* Form panel */}
       <div className="flex items-center justify-center bg-ink-50 p-6 sm:p-10">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <img
-              src="/mo_tracker_mark.png"
-              alt="MO Tracker"
-              className="h-12 w-12 rounded-2xl object-cover shadow-lg"
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
+            <Logo size={48} />
             <div>
               <div className="font-display text-lg font-extrabold text-ink-900">MO Tracker</div>
               <div className="text-xs text-ink-500">Central Bank of India</div>

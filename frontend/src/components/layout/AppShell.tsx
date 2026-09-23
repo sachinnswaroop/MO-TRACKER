@@ -21,7 +21,7 @@ export function AppShell() {
   if (!me) return null;
 
   return (
-    <div className="min-h-screen bg-ink-50 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(113,89,242,0.08),transparent)]">
+    <div className="min-h-screen bg-ink-50 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(47,107,240,0.06),transparent)]">
       <Sidebar me={me} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <div className="md:pl-72">
         <Topbar me={me} noticeCount={data?.items.length ?? 0} onMenuClick={() => setSidebarOpen((v) => !v)} />

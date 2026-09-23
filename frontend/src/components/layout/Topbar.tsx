@@ -44,7 +44,7 @@ export function Topbar({
         >
           <Bell size={18} />
           {noticeCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-gradient-to-b from-accent-400 to-danger-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-gradient-to-b from-danger-500 to-danger-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
               {noticeCount}
             </span>
           )}
