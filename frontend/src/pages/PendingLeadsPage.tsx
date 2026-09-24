@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileDown, FileSpreadsheet } from "lucide-react";
+import { ChevronDown, FileDown, FileSpreadsheet } from "lucide-react";
 import { apiGet, downloadFile } from "../lib/api";
 import type { PendingLeadsData } from "../lib/types";
 import { reportCategories } from "../lib/productCards";
@@ -10,8 +10,9 @@ import { Field, Input, Select } from "../components/ui/Field";
 import { Button } from "../components/ui/Button";
 import { ResponsiveFilters } from "../components/ui/ResponsiveFilters";
 import { DataTable } from "../components/ui/DataTable";
+import { PendingBreakdown } from "../components/pending/PendingBreakdown";
 import { Loading, Alert } from "../components/ui/Feedback";
-import { fmtDate, fmtMonthLabel } from "../lib/format";
+import { fmtDate, fmtMonthShort } from "../lib/format";
 
 type Mode = "monthly" | "daily" | "cumulative";
 
@@ -20,6 +21,7 @@ export function PendingLeadsPage() {
   const [date, setDate] = useState("");
   const [category, setCategory] = useState("All Products");
   const [subproduct, setSubproduct] = useState("All Sub-products");
+  const [showRaw, setShowRaw] = useState(false);
 
   const { data, error } = useQuery({
     queryKey: ["pending-leads", category, subproduct, mode, date],
@@ -103,25 +105,42 @@ export function PendingLeadsPage() {
         <>
           {mode === "monthly" && data.months.length > 0 && (
             <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <Tabs value={date.slice(0, 7)} onChange={(m) => setDate(m + "-01")} options={data.months.map((m) => ({ value: m, label: fmtMonthLabel(m) }))} />
+              <Tabs value={date.slice(0, 7)} onChange={(m) => setDate(m + "-01")} options={data.months.map((m) => ({ value: m, label: fmtMonthShort(m) }))} />
             </div>
           )}
           <p className="mb-3 px-1 text-[12.5px] font-medium text-ink-500">
-            {modeLabel} • {fmtDate(data.start)} to {fmtDate(data.end)} • Open + Under Process
+            {modeLabel} • {fmtDate(data.start)} – {fmtDate(data.end)}
           </p>
-          <DataTable
-            titleKey="product_name"
-            summaryKeys={["number", "amount_lakh"]}
-            columns={[
-              { key: "product_name", label: "Product Name" },
-              { key: "number", label: "Number" },
-              { key: "amount_lakh", label: "Amount (Lakh)" },
-              { key: "region", label: "Region" },
-              { key: "branch", label: "Branch" },
-              { key: "assigned_date", label: "Assigned Date" },
-            ]}
-            rows={data.rows}
-          />
+          <PendingBreakdown rows={data.rows} refDate={data.max_date} />
+
+          {data.rows.length > 0 && (
+            <div className="mt-5">
+              <button
+                onClick={() => setShowRaw((v) => !v)}
+                className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left text-[13px] font-bold text-ink-700 shadow-[var(--shadow-soft)]"
+              >
+                All rows ({data.rows.length})
+                <ChevronDown size={18} className={`text-ink-300 transition-transform ${showRaw ? "rotate-180" : ""}`} />
+              </button>
+              {showRaw && (
+                <div className="mt-3">
+                  <DataTable
+                    titleKey="product_name"
+                    summaryKeys={["number", "amount_lakh"]}
+                    columns={[
+                      { key: "product_name", label: "Product Name" },
+                      { key: "number", label: "Number" },
+                      { key: "amount_lakh", label: "Amount (Lakh)" },
+                      { key: "region", label: "Region" },
+                      { key: "branch", label: "Branch" },
+                      { key: "assigned_date", label: "Assigned Date" },
+                    ]}
+                    rows={data.rows}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
