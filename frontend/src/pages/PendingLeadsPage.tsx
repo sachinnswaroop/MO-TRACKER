@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FileDown, FileSpreadsheet } from "lucide-react";
 import { apiGet, downloadFile } from "../lib/api";
 import type { PendingLeadsData } from "../lib/types";
 import { reportCategories } from "../lib/productCards";
 import { PageHeader } from "../components/ui/PageHeader";
-import { Card } from "../components/ui/Card";
 import { Segmented, Tabs } from "../components/ui/Segmented";
-import { FilterCard, Select } from "../components/ui/Field";
+import { Field, Input, Select } from "../components/ui/Field";
 import { Button } from "../components/ui/Button";
+import { ResponsiveFilters } from "../components/ui/ResponsiveFilters";
 import { DataTable } from "../components/ui/DataTable";
 import { Loading, Alert } from "../components/ui/Feedback";
 import { fmtDate, fmtMonthLabel } from "../lib/format";
@@ -32,13 +33,29 @@ export function PendingLeadsPage() {
     );
   }
 
+  const modeLabel = mode === "daily" ? "Daily" : mode === "monthly" ? "Monthly" : "Cumulative";
+  const summary = [modeLabel, category, subproduct !== "All Sub-products" ? subproduct : ""].filter(Boolean).join(" • ");
+
+  const downloads = (
+    <>
+      <Button size="sm" onClick={() => download("excel")} aria-label="Download Excel">
+        <FileSpreadsheet size={14} />
+        <span className="hidden sm:inline">Excel</span>
+      </Button>
+      <Button size="sm" variant="primary" onClick={() => download("pdf")} aria-label="Download PDF">
+        <FileDown size={14} />
+        <span className="hidden sm:inline">PDF</span>
+      </Button>
+    </>
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Pending Leads"
-        subtitle="Open and Under Process leads"
-        tools={
-          <>
+      <PageHeader title="Pending Leads" subtitle="Open and Under Process leads" />
+
+      <div className="mb-4">
+        <ResponsiveFilters summary={summary} actions={downloads}>
+          <Field label="View by">
             <Segmented
               value={mode}
               onChange={setMode}
@@ -48,19 +65,11 @@ export function PendingLeadsPage() {
                 { value: "cumulative", label: "Cumulative" },
               ]}
             />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm sm:w-auto"
-            />
-          </>
-        }
-      />
-
-      <Card>
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FilterCard label="Product Category">
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <Field label="Product category">
             <Select
               value={category}
               onChange={(e) => {
@@ -74,8 +83,8 @@ export function PendingLeadsPage() {
                 </option>
               ))}
             </Select>
-          </FilterCard>
-          <FilterCard label="Sub Category">
+          </Field>
+          <Field label="Sub category">
             <Select value={subproduct} onChange={(e) => setSubproduct(e.target.value)}>
               <option value="All Sub-products">All Sub-products</option>
               {(data?.subcategories ?? []).map((s) => (
@@ -84,50 +93,37 @@ export function PendingLeadsPage() {
                 </option>
               ))}
             </Select>
-          </FilterCard>
-        </div>
+          </Field>
+        </ResponsiveFilters>
+      </div>
 
-        {error && <Alert>{(error as Error).message}</Alert>}
-        {!data && !error && <Loading />}
-        {data && (
-          <>
-            {mode === "monthly" && data.months.length > 0 && (
-              <div className="mb-4">
-                <Tabs value={date.slice(0, 7)} onChange={(m) => setDate(m + "-01")} options={data.months.map((m) => ({ value: m, label: fmtMonthLabel(m) }))} />
-              </div>
-            )}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-bold text-ink-800">
-                  {mode === "daily" ? "Daily" : mode === "monthly" ? "Monthly" : "Cumulative"} Pending Leads
-                </div>
-                <div className="text-xs text-ink-400">
-                  {fmtDate(data.start)} to {fmtDate(data.end)} • Status: Open + Under Process
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => download("excel")}>
-                  Excel
-                </Button>
-                <Button size="sm" variant="primary" onClick={() => download("pdf")}>
-                  PDF
-                </Button>
-              </div>
+      {error && <Alert>{(error as Error).message}</Alert>}
+      {!data && !error && <Loading />}
+      {data && (
+        <>
+          {mode === "monthly" && data.months.length > 0 && (
+            <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <Tabs value={date.slice(0, 7)} onChange={(m) => setDate(m + "-01")} options={data.months.map((m) => ({ value: m, label: fmtMonthLabel(m) }))} />
             </div>
-            <DataTable
-              columns={[
-                { key: "product_name", label: "Product Name" },
-                { key: "number", label: "Number" },
-                { key: "amount_lakh", label: "Amount (Lakh)" },
-                { key: "region", label: "Region" },
-                { key: "branch", label: "Branch" },
-                { key: "assigned_date", label: "Assigned Date" },
-              ]}
-              rows={data.rows}
-            />
-          </>
-        )}
-      </Card>
+          )}
+          <p className="mb-3 px-1 text-[12.5px] font-medium text-ink-500">
+            {modeLabel} • {fmtDate(data.start)} to {fmtDate(data.end)} • Open + Under Process
+          </p>
+          <DataTable
+            titleKey="product_name"
+            summaryKeys={["number", "amount_lakh"]}
+            columns={[
+              { key: "product_name", label: "Product Name" },
+              { key: "number", label: "Number" },
+              { key: "amount_lakh", label: "Amount (Lakh)" },
+              { key: "region", label: "Region" },
+              { key: "branch", label: "Branch" },
+              { key: "assigned_date", label: "Assigned Date" },
+            ]}
+            rows={data.rows}
+          />
+        </>
+      )}
     </div>
   );
 }

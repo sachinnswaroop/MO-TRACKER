@@ -13,6 +13,7 @@ import { CoReportPage } from "./pages/CoReportPage";
 import { TargetsPage } from "./pages/TargetsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { AccountPage } from "./pages/AccountPage";
+import { MorePage } from "./pages/MorePage";
 import { ActivityPage } from "./pages/activity/ActivityPage";
 
 function LoginRoute() {
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/account" element={<AccountPage />} />
+              <Route path="/more" element={<MorePage />} />
 
               <Route element={<RoleRoute roles={["admin"]} />}>
                 <Route path="/upload" element={<UploadPage />} />

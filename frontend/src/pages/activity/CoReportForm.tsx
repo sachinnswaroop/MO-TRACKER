@@ -7,10 +7,11 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { DataTable } from "../../components/ui/DataTable";
 import type { CoActivityReport } from "../../lib/types";
+import { todayLocal } from "../../lib/format";
 
 export function CoReportForm({ history }: { history: CoActivityReport[] }) {
   const qc = useQueryClient();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [lms, setLms] = useState("Yes");
   const [googleForm, setGoogleForm] = useState("Yes");
   const [error, setError] = useState("");

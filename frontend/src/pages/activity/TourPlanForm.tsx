@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { DataTable } from "../../components/ui/DataTable";
 import type { TourPlan } from "../../lib/types";
+import { todayLocal } from "../../lib/format";
 
 const CATEGORIES = [
   { name: "Liability", placeholder: "Location / Visit Details" },
@@ -17,7 +18,7 @@ const CATEGORIES = [
 
 export function TourPlanForm({ history }: { history: TourPlan[] }) {
   const qc = useQueryClient();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [entries, setEntries] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(CATEGORIES.map((c) => [c.name, [""]])),
   );

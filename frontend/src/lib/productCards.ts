@@ -11,26 +11,28 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import type { Tone } from "./tones";
 
 export interface ProductCardDef {
   key: string;
   name: string;
+  /** Short label for the phone icon grid. */
+  short: string;
   icon: LucideIcon;
-  /** Tailwind classes for the icon chip background + icon color. */
-  accent: string;
+  tone: Tone;
 }
 
 export const productCards: ProductCardDef[] = [
-  { key: "Savings", name: "Savings Account", icon: PiggyBank, accent: "bg-blue-50 text-blue-600" },
-  { key: "Current", name: "Current Account", icon: Landmark, accent: "bg-amber-50 text-amber-600" },
-  { key: "Salary", name: "Salary Account", icon: Wallet, accent: "bg-rose-50 text-rose-600" },
-  { key: "Home Loan", name: "Home Loan", icon: Home, accent: "bg-indigo-50 text-indigo-600" },
-  { key: "Vehicle Loan", name: "Vehicle Loan", icon: Car, accent: "bg-teal-50 text-teal-600" },
-  { key: "Education/Personal Loan", name: "Education/Personal Loan", icon: GraduationCap, accent: "bg-violet-50 text-violet-600" },
-  { key: "Retails", name: "Retail Loan", icon: Store, accent: "bg-orange-50 text-orange-600" },
-  { key: "MSME", name: "MSME", icon: Building2, accent: "bg-slate-100 text-slate-600" },
-  { key: "Agriculture", name: "Agriculture", icon: Wheat, accent: "bg-green-50 text-green-600" },
-  { key: "Insurance", name: "Insurance", icon: ShieldCheck, accent: "bg-pink-50 text-pink-600" },
+  { key: "Savings", name: "Savings Account", short: "Savings", icon: PiggyBank, tone: "blue" },
+  { key: "Current", name: "Current Account", short: "Current", icon: Landmark, tone: "orange" },
+  { key: "Salary", name: "Salary Account", short: "Salary", icon: Wallet, tone: "pink" },
+  { key: "Home Loan", name: "Home Loan", short: "Home Loan", icon: Home, tone: "indigo" },
+  { key: "Vehicle Loan", name: "Vehicle Loan", short: "Vehicle", icon: Car, tone: "teal" },
+  { key: "Education/Personal Loan", name: "Education/Personal Loan", short: "Edu/Personal", icon: GraduationCap, tone: "violet" },
+  { key: "Retails", name: "Retail Loan", short: "Retail", icon: Store, tone: "red" },
+  { key: "MSME", name: "MSME", short: "MSME", icon: Building2, tone: "cyan" },
+  { key: "Agriculture", name: "Agriculture", short: "Agri", icon: Wheat, tone: "green" },
+  { key: "Insurance", name: "Insurance", short: "Insurance", icon: ShieldCheck, tone: "yellow" },
 ];
 
 export const chartColors: Record<string, string> = {

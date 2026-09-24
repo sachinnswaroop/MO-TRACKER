@@ -25,3 +25,8 @@ export function fmtMonthShort(monthStr: string): string {
   const d = new Date(monthStr + "-01T00:00:00");
   return d.toLocaleDateString("en-US", { month: "long", year: "2-digit" });
 }
+
+/** Today's date as YYYY-MM-DD in the user's local timezone (not UTC). */
+export function todayLocal(): string {
+  return new Date().toLocaleDateString("en-CA");
+}

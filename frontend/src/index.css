@@ -4,59 +4,62 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", "Inter", -apple-system, sans-serif;
 
-  /* Primary accent: a clean, modern blue — used sparingly (buttons, active
-     states, links), not as a wash across large surfaces. */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dce8ff;
-  --color-brand-200: #b7d1ff;
-  --color-brand-300: #85b1ff;
-  --color-brand-400: #4f8bff;
-  --color-brand-500: #2f6bf0;
-  --color-brand-600: #1d54d6;
-  --color-brand-700: #1a44ab;
-  --color-brand-800: #17398a;
-  --color-brand-900: #142e6e;
+  /* Bright primary blue (Paytm-like sky-to-royal range). */
+  --color-brand-50: #eaf6ff;
+  --color-brand-100: #d3ecff;
+  --color-brand-200: #a8d9ff;
+  --color-brand-300: #6cc0ff;
+  --color-brand-400: #2fa4ff;
+  --color-brand-500: #0f86f5;
+  --color-brand-600: #0a6fd8;
+  --color-brand-700: #0a58ab;
+  --color-brand-800: #0c4784;
+  --color-brand-900: #0d3966;
 
-  /* Dark neutral used for chrome surfaces (sidebar, hero, login panel) —
-     near-black navy, not a saturated hue. */
-  --color-charcoal-800: #161b28;
-  --color-charcoal-900: #0c0f18;
+  --color-cyan-bright: #22c8ff;
 
-  --color-ink-50: #f8f9fc;
-  --color-ink-100: #f0f1f6;
-  --color-ink-200: #e3e5ee;
-  --color-ink-300: #cbcedb;
-  --color-ink-400: #979aad;
-  --color-ink-500: #6c6f85;
-  --color-ink-600: #4d4f68;
-  --color-ink-700: #34364a;
-  --color-ink-800: #1f2030;
-  --color-ink-900: #121320;
+  /* Navy-tinted neutrals so text reads crisp against bright surfaces. */
+  --color-ink-50: #f2f7fd;
+  --color-ink-100: #e8eff9;
+  --color-ink-200: #d9e3f1;
+  --color-ink-300: #bccadf;
+  --color-ink-400: #8496b3;
+  --color-ink-500: #5d7091;
+  --color-ink-600: #435675;
+  --color-ink-700: #2c3e5e;
+  --color-ink-800: #172a4a;
+  --color-ink-900: #0b1b3a;
 
-  --color-success-50: #eafbf3;
-  --color-success-500: #16b581;
-  --color-success-600: #0e9c6d;
+  --color-success-50: #e8faf1;
+  --color-success-500: #12b981;
+  --color-success-600: #0a9a69;
 
-  --color-warning-50: #fff8eb;
-  --color-warning-500: #f5a524;
-  --color-warning-600: #dc8c0f;
+  --color-warning-50: #fff7e6;
+  --color-warning-500: #f5a30b;
+  --color-warning-600: #d98a00;
 
-  --color-danger-50: #fef1f3;
-  --color-danger-500: #f0466f;
-  --color-danger-600: #d92f59;
+  --color-danger-50: #fff0f2;
+  --color-danger-500: #f43f5e;
+  --color-danger-600: #db2748;
 
-  --shadow-soft: 0 1px 2px rgba(15, 20, 40, 0.04), 0 8px 24px -8px rgba(15, 20, 40, 0.10);
-  --shadow-brand: 0 8px 22px -6px rgba(47, 107, 240, 0.35);
-  --shadow-lift: 0 1px 2px rgba(15, 20, 40, 0.05), 0 16px 32px -12px rgba(15, 20, 40, 0.16);
+  --shadow-soft: 0 1px 2px rgba(11, 27, 58, 0.04), 0 6px 20px -6px rgba(11, 27, 58, 0.10);
+  --shadow-brand: 0 8px 20px -6px rgba(15, 134, 245, 0.45);
+  --shadow-lift: 0 1px 2px rgba(11, 27, 58, 0.05), 0 14px 30px -10px rgba(11, 27, 58, 0.18);
 }
 
 html, body, #root {
-  height: 100%;
+  min-height: 100%;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 body {
   @apply bg-ink-50 text-ink-800 antialiased;
   font-feature-settings: "cv11", "ss01";
+  touch-action: manipulation;
 }
 
 h1, h2, h3, .font-display {
@@ -68,6 +71,17 @@ h1, h2, h3, .font-display {
   background: var(--color-brand-200);
 }
 
+/* iOS zooms into inputs below 16px; keep them at 16px on phones. */
+@media (max-width: 639px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe-area helpers for notched phones / installed PWA. */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -75,46 +89,28 @@ h1, h2, h3, .font-display {
 .scrollbar-thin:hover {
   scrollbar-color: var(--color-ink-300) transparent;
 }
-.scrollbar-thin::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
-}
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 999px;
-}
-.scrollbar-thin:hover::-webkit-scrollbar-thumb {
-  background: var(--color-ink-300);
-}
+.scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+.scrollbar-thin:hover::-webkit-scrollbar-thumb { background: var(--color-ink-300); }
 
-.scrollbar-thin-dark {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-.scrollbar-thin-dark:hover {
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
-}
-.scrollbar-thin-dark::-webkit-scrollbar {
-  width: 6px;
-}
-.scrollbar-thin-dark::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-thin-dark::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 999px;
-}
-.scrollbar-thin-dark:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
-}
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in {
-  animation: fade-in 0.25s ease-out;
+.animate-fade-in { animation: fade-in 0.25s ease-out; }
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
+.animate-sheet-up { animation: sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-backdrop-in { animation: backdrop-in 0.2s ease-out; }

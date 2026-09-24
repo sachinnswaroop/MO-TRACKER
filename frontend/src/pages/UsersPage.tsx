@@ -38,6 +38,8 @@ export function UsersPage() {
         {!data && !error && <Loading />}
         {data && (
           <DataTable
+            titleKey="name"
+            summaryKeys={["user_id", "role"]}
             columns={[
               { key: "user_id", label: "User ID" },
               { key: "name", label: "Name" },

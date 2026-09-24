@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { DataTable } from "../../components/ui/DataTable";
 import type { TourReport } from "../../lib/types";
+import { todayLocal } from "../../lib/format";
 
 const PAIRS: { key: string; label: string }[] = [
   { key: "home_loan", label: "Home Loan" },
@@ -18,7 +19,7 @@ const PAIRS: { key: string; label: string }[] = [
 
 export function TourReportForm({ history }: { history: TourReport[] }) {
   const qc = useQueryClient();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -71,31 +72,37 @@ export function TourReportForm({ history }: { history: TourReport[] }) {
           Amounts are in Lakh. If Lead No. is 1 or more, Lead Amount must be greater than 0; if Lead Amount is
           entered, Lead No. must be 1 or more.
         </p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2.5">
           {PAIRS.map((p) => (
-            <div key={p.key} className="space-y-2">
-              <Field label={`${p.label} Lead No.`}>
-                <Input type="number" min={0} step={1} value={v(`${p.key}_no`)} onChange={(e) => set(`${p.key}_no`, e.target.value)} />
-              </Field>
-              <Field label={`${p.label} Lead Amount`}>
-                <Input type="number" min={0} step={0.01} value={v(`${p.key}_amt`)} onChange={(e) => set(`${p.key}_amt`, e.target.value)} />
-              </Field>
+            <div key={p.key} className="rounded-2xl bg-ink-50 p-3">
+              <div className="mb-2 text-[13px] font-bold text-ink-800">{p.label}</div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field label="Lead No.">
+                  <Input type="number" inputMode="numeric" min={0} step={1} value={v(`${p.key}_no`)} onChange={(e) => set(`${p.key}_no`, e.target.value)} />
+                </Field>
+                <Field label="Amount (Lakh)">
+                  <Input type="number" inputMode="decimal" min={0} step={0.01} value={v(`${p.key}_amt`)} onChange={(e) => set(`${p.key}_amt`, e.target.value)} />
+                </Field>
+              </div>
             </div>
           ))}
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Builder Tie-up Number">
-            <Input type="number" min={0} value={v("builder_tieup")} onChange={(e) => set("builder_tieup", e.target.value)} />
-          </Field>
-          <Field label="Dealer Tie-up Number">
-            <Input type="number" min={0} value={v("dealer_tieup")} onChange={(e) => set("dealer_tieup", e.target.value)} />
-          </Field>
+          <div className="rounded-2xl bg-ink-50 p-3">
+            <div className="mb-2 text-[13px] font-bold text-ink-800">Tie-ups</div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Field label="Builder">
+                <Input type="number" inputMode="numeric" min={0} value={v("builder_tieup")} onChange={(e) => set("builder_tieup", e.target.value)} />
+              </Field>
+              <Field label="Dealer">
+                <Input type="number" inputMode="numeric" min={0} value={v("dealer_tieup")} onChange={(e) => set("dealer_tieup", e.target.value)} />
+              </Field>
+            </div>
+          </div>
           <Field label="Date">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
         </div>
         <div className="mt-4">
-          <Button variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button variant="primary" className="w-full sm:w-auto" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             Save Daily Report
           </Button>
         </div>

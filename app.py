@@ -1238,9 +1238,13 @@ async def reset_user_password(request:Request):
 # shadows the /api and /download routes above: a real file under dist/ is
 # served as-is (JS/CSS chunks, the logo, favicon); any other path falls back
 # to index.html so React Router can handle client-side routes on refresh/deep-link.
-@app.get("/{full_path:path}", include_in_schema=False)
+@app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 async def spa(full_path: str):
     candidate = os.path.realpath(os.path.join(FRONTEND_DIST, full_path))
     if full_path and candidate.startswith(FRONTEND_DIST + os.sep) and os.path.isfile(candidate):
-        return FileResponse(candidate)
-    return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+        if full_path.startswith("assets/"):
+            # Vite content-hashes these filenames, so they can be cached forever.
+            return FileResponse(candidate, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+        # sw.js / manifest / icons: always revalidate so app updates roll out.
+        return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
+    return FileResponse(os.path.join(FRONTEND_DIST, "index.html"), headers={"Cache-Control": "no-cache"})

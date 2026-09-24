@@ -1,22 +1,24 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FileDown, FileSpreadsheet } from "lucide-react";
 import { apiGet, downloadFile } from "../lib/api";
 import type { CategoryReportData } from "../lib/types";
 import { reportCategories } from "../lib/productCards";
 import { PageHeader } from "../components/ui/PageHeader";
-import { Card } from "../components/ui/Card";
+import { Card, SectionTitle } from "../components/ui/Card";
 import { Segmented, Tabs } from "../components/ui/Segmented";
-import { FilterCard, Select } from "../components/ui/Field";
+import { Field, Input, Select } from "../components/ui/Field";
 import { Button } from "../components/ui/Button";
+import { ResponsiveFilters } from "../components/ui/ResponsiveFilters";
 import { DataTable } from "../components/ui/DataTable";
 import { Loading, Alert } from "../components/ui/Feedback";
-import { fmtDate, fmtMonthShort } from "../lib/format";
+import { fmtDate, fmtMonthShort, todayLocal } from "../lib/format";
 
 type Mode = "monthly" | "cumulative";
 
 export function ReportsPage() {
   const [mode, setMode] = useState<Mode>("monthly");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [category, setCategory] = useState("All Products");
   const [subproduct, setSubproduct] = useState("All Sub-products");
 
@@ -32,27 +34,36 @@ export function ReportsPage() {
     );
   }
 
+  const summary = [mode === "monthly" ? "Monthly" : "Cumulative", category, subproduct !== "All Sub-products" ? subproduct : ""]
+    .filter(Boolean)
+    .join(" • ");
+
+  const downloads = (
+    <>
+      <Button size="sm" onClick={() => download("excel")} disabled={isFetching} aria-label="Download Excel">
+        <FileSpreadsheet size={14} />
+        <span className="hidden sm:inline">Excel</span>
+      </Button>
+      <Button size="sm" variant="primary" onClick={() => download("pdf")} disabled={isFetching} aria-label="Download PDF">
+        <FileDown size={14} />
+        <span className="hidden sm:inline">PDF</span>
+      </Button>
+    </>
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Report"
-        subtitle="Monthly and cumulative performance"
-        tools={
-          <>
-            <Segmented value={mode} onChange={setMode} options={[{ value: "monthly", label: "Monthly" }, { value: "cumulative", label: "Cumulative" }]} />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm sm:w-auto"
-            />
-          </>
-        }
-      />
+      <PageHeader title="Report" subtitle="Monthly and cumulative performance" />
 
-      <Card>
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FilterCard label="Product Category">
+      <div className="mb-4">
+        <ResponsiveFilters summary={summary} actions={downloads}>
+          <Field label="View by">
+            <Segmented value={mode} onChange={setMode} options={[{ value: "monthly", label: "Monthly" }, { value: "cumulative", label: "Cumulative" }]} />
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <Field label="Product category">
             <Select
               value={category}
               onChange={(e) => {
@@ -66,8 +77,8 @@ export function ReportsPage() {
                 </option>
               ))}
             </Select>
-          </FilterCard>
-          <FilterCard label="Sub Category">
+          </Field>
+          <Field label="Sub category">
             <Select value={subproduct} onChange={(e) => setSubproduct(e.target.value)}>
               <option value="All Sub-products">All Sub-products</option>
               {(data?.subcategories ?? []).map((s) => (
@@ -76,63 +87,60 @@ export function ReportsPage() {
                 </option>
               ))}
             </Select>
-          </FilterCard>
-        </div>
+          </Field>
+        </ResponsiveFilters>
+      </div>
 
-        {error && <Alert>{(error as Error).message}</Alert>}
-        {!data && !error && <Loading />}
-        {data && (
-          <>
-            {mode === "monthly" && data.months.length > 0 && (
-              <div className="mb-4">
-                <Tabs
-                  value={date.slice(0, 7)}
-                  onChange={(m) => setDate(m + "-01")}
-                  options={data.months.map((m) => ({ value: m, label: fmtMonthShort(m) }))}
-                />
-              </div>
-            )}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700">
-                {mode === "monthly" ? "Monthly" : "Cumulative"}: {fmtDate(data.start)} to {fmtDate(data.end)}
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => download("excel")} disabled={isFetching}>
-                  Excel
-                </Button>
-                <Button size="sm" variant="primary" onClick={() => download("pdf")} disabled={isFetching}>
-                  PDF
-                </Button>
-              </div>
-            </div>
-            <DataTable
-              columns={[
-                { key: "category", label: "Product Category" },
-                { key: "subproduct", label: "Sub-product" },
-                { key: "total_leads", label: "Leads" },
-                { key: "lead_amount_lakh", label: "Lead Amount" },
-                { key: "converted", label: "Converted" },
-                { key: "converted_actual_amount_lakh", label: "Converted Amount" },
-                { key: "pending", label: "Pending" },
-                { key: "pending_amount_lakh", label: "Pending Amount" },
-              ]}
-              rows={data.subproducts}
-            />
-            <div className="mt-4">
-              <DataTable
-                columns={[
-                  { key: "status", label: "Status" },
-                  { key: "number", label: "No." },
-                  { key: "amount_lakh", label: "Lead Amount" },
-                  { key: "actual_number", label: "Actual No." },
-                  { key: "actual_amount_lakh", label: "Actual Amount" },
-                ]}
-                rows={data.statuses}
+      {error && <Alert>{(error as Error).message}</Alert>}
+      {!data && !error && <Loading />}
+      {data && (
+        <>
+          {mode === "monthly" && data.months.length > 0 && (
+            <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <Tabs
+                value={date.slice(0, 7)}
+                onChange={(m) => setDate(m + "-01")}
+                options={data.months.map((m) => ({ value: m, label: fmtMonthShort(m) }))}
               />
             </div>
-          </>
-        )}
-      </Card>
+          )}
+          <p className="mb-3 px-1 text-[12.5px] font-medium text-ink-500">
+            {mode === "monthly" ? "Monthly" : "Cumulative"} • {fmtDate(data.start)} to {fmtDate(data.end)}
+          </p>
+
+          <DataTable
+            titleKey="subproduct"
+            summaryKeys={["total_leads", "converted"]}
+            columns={[
+              { key: "category", label: "Product Category" },
+              { key: "subproduct", label: "Sub-product" },
+              { key: "total_leads", label: "Leads" },
+              { key: "lead_amount_lakh", label: "Lead Amount" },
+              { key: "converted", label: "Converted" },
+              { key: "converted_actual_amount_lakh", label: "Converted Amount" },
+              { key: "pending", label: "Pending" },
+              { key: "pending_amount_lakh", label: "Pending Amount" },
+            ]}
+            rows={data.subproducts}
+          />
+
+          <Card className="mt-4">
+            <SectionTitle title="By status" />
+            <DataTable
+              titleKey="status"
+              summaryKeys={["number", "amount_lakh"]}
+              columns={[
+                { key: "status", label: "Status" },
+                { key: "number", label: "No." },
+                { key: "amount_lakh", label: "Lead Amount" },
+                { key: "actual_number", label: "Actual No." },
+                { key: "actual_amount_lakh", label: "Actual Amount" },
+              ]}
+              rows={data.statuses}
+            />
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -1,28 +1,60 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import {
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  FileSpreadsheet,
+  PieChart,
+  ShieldX,
+  SlidersHorizontal,
+  Upload,
+  Hourglass,
+  ClipboardCheck,
+  Route,
+  Target,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { apiGet } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import type { DailyPerformanceData, DashboardData } from "../lib/types";
+import type { CategoryReportData, DailyPerformanceData, DashboardData } from "../lib/types";
+import type { Tone } from "../lib/tones";
 import { productCards } from "../lib/productCards";
 import { Segmented } from "../components/ui/Segmented";
-import { FilterCard, Select } from "../components/ui/Field";
-import { Card, SectionTitle } from "../components/ui/Card";
-import { ProductCard } from "../components/ProductCard";
+import { Field, Select } from "../components/ui/Field";
+import { Card } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
+import { IconGridItem } from "../components/ui/IconTile";
+import { BottomSheet } from "../components/ui/BottomSheet";
 import { LeadShareDonut } from "../components/charts/LeadShareDonut";
 import { DailyPerformanceChart } from "../components/charts/DailyPerformanceChart";
 import { SimpleBarList } from "../components/charts/SimpleBarList";
-import { fmtDate, fmtMonthLabel } from "../lib/format";
-import { Alert } from "../components/ui/Feedback";
+import { fmtDate, fmtMonthLabel, fmtMoney } from "../lib/format";
+import { Alert, Loading } from "../components/ui/Feedback";
 
 type Mode = "monthly" | "daily" | "cumulative";
+type Insight = "daily" | "share" | "pending" | "rejected";
+
+interface Shortcut {
+  label: string;
+  to: string;
+  icon: LucideIcon;
+  tone: Tone;
+}
 
 export function DashboardPage() {
   const { me } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("monthly");
   const [date, setDate] = useState("");
   const [productFilter, setProductFilter] = useState("All Products");
   const [subproduct, setSubproduct] = useState("All Sub-products");
   const [dailyProduct, setDailyProduct] = useState("All Products");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [insight, setInsight] = useState<Insight | null>(null);
 
   const { data, error } = useQuery({
     queryKey: ["dashboard-data", mode, date, productFilter, subproduct],
@@ -35,10 +67,22 @@ export function DashboardPage() {
       }),
   });
 
+  const { data: total } = useQuery({
+    queryKey: ["dashboard-total", mode, date, productFilter, subproduct],
+    queryFn: () =>
+      apiGet<CategoryReportData>("/api/category-report", {
+        category: productFilter,
+        subproduct,
+        mode,
+        report_date: date || undefined,
+      }),
+    enabled: !!date,
+  });
+
   const { data: daily } = useQuery({
     queryKey: ["daily-performance", dailyProduct, date],
     queryFn: () => apiGet<DailyPerformanceData>("/api/daily-performance", { product: dailyProduct, report_date: date || undefined }),
-    enabled: !!date,
+    enabled: !!date && insight === "daily",
   });
 
   // Initialize / clamp the selected date once we know the dataset's max date.
@@ -53,111 +97,203 @@ export function DashboardPage() {
     }
   }, [data, date, mode]);
 
-  if (error) return <Alert>{(error as Error).message}</Alert>;
-  if (!data) return null;
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <Alert>{(error as Error).message}</Alert>
+        {me?.role === "admin" && (
+          <Button variant="primary" onClick={() => navigate("/upload")}>
+            <Upload size={16} /> Go to Upload
+          </Button>
+        )}
+      </div>
+    );
+  }
+  if (!data) return <Loading />;
 
   const wanted = productFilter !== "All Products" ? productCards.filter((p) => p.key === productFilter) : productCards;
   const summaryByKey = Object.fromEntries(data.cards.map((c) => [c.category, c.summary]));
+  const s = total?.summary;
 
   const periodLabel =
-    mode === "monthly" && date
-      ? fmtMonthLabel(date.slice(0, 7))
-      : mode === "daily"
-        ? fmtDate(date)
-        : `Up to ${fmtDate(date)}`;
+    mode === "monthly" && date ? fmtMonthLabel(date.slice(0, 7)) : mode === "daily" ? fmtDate(date) : `Up to ${fmtDate(date)}`;
+
+  const shortcuts: Shortcut[] =
+    me?.role === "mo"
+      ? [
+          { label: "Tour Plan", to: "/activity?tab=plan", icon: Route, tone: "green" },
+          { label: "Tour Report", to: "/activity?tab=tour", icon: ClipboardCheck, tone: "cyan" },
+          { label: "CO Report", to: "/activity?tab=co", icon: FileSpreadsheet, tone: "teal" },
+          { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+        ]
+      : me?.role === "admin"
+        ? [
+            { label: "Upload", to: "/upload", icon: Upload, tone: "indigo" },
+            { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+            { label: "CO Report", to: "/co-report", icon: FileSpreadsheet, tone: "teal" },
+            { label: "Targets", to: "/targets", icon: Target, tone: "red" },
+          ]
+        : [
+            { label: "Activity", to: "/activity", icon: ClipboardCheck, tone: "green" },
+            { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+            { label: "CO Report", to: "/co-report", icon: FileSpreadsheet, tone: "teal" },
+            { label: "Alerts", to: "/notifications", icon: Hourglass, tone: "pink" },
+          ];
+
+  const insights: { id: Insight; title: string; sub: string; icon: LucideIcon; bg: string; fg: string }[] = [
+    { id: "daily", title: "Daily Performance", sub: "Last 7 days", icon: BarChart3, bg: "from-sky-100 to-sky-50", fg: "text-sky-600" },
+    { id: "share", title: "Lead Share", sub: "By product", icon: PieChart, bg: "from-emerald-100 to-emerald-50", fg: "text-emerald-600" },
+    { id: "pending", title: "Pending Leads", sub: s ? `${s.pending} open` : "By product", icon: Hourglass, bg: "from-amber-100 to-amber-50", fg: "text-amber-600" },
+    { id: "rejected", title: "Rejections", sub: s ? `${s.rejected} rejected` : "By product", icon: ShieldX, bg: "from-rose-100 to-rose-50", fg: "text-rose-600" },
+  ];
 
   const donutData = wanted.map((p) => ({ name: p.key, value: summaryByKey[p.key]?.total_leads ?? 0 }));
   const pendingData = wanted.map((p) => ({ label: p.name, value: summaryByKey[p.key]?.pending ?? 0 }));
   const rejectedData = wanted.map((p) => ({ label: p.name, value: summaryByKey[p.key]?.rejected ?? 0 }));
 
+  function openProduct(key: string) {
+    navigate(`/reports/category/${encodeURIComponent(key)}?mode=${mode}&date=${encodeURIComponent(date)}`);
+  }
+
+  const kpis = [
+    { label: "Leads", value: s?.total_leads, amount: s?.lead_amount_lakh },
+    { label: "Converted", value: s?.converted, amount: s?.converted_actual_amount_lakh },
+    { label: "Pending", value: s?.pending, amount: s?.pending_amount_lakh },
+  ];
+
   return (
-    <div>
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-charcoal-800 to-charcoal-900 p-6 text-white sm:p-7">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-brand-500/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-brand-400/10 blur-3xl" />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.05]"
-          style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
-        />
-        <h1 className="font-display relative z-10 text-2xl font-extrabold sm:text-3xl">
-          Good day, <span>{me?.mo_name || me?.username}</span>
-        </h1>
-        <p className="relative z-10 mt-1.5 text-sm text-white/75">
-          Here's your marketing performance at a glance • <b className="text-white">{periodLabel}</b>
-        </p>
-      </div>
-
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FilterCard label="View By">
-          <Segmented
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "monthly", label: "Monthly" },
-              { value: "daily", label: "Daily" },
-              { value: "cumulative", label: "Cumulative" },
-            ]}
-          />
-        </FilterCard>
-        <FilterCard label={mode === "daily" ? "Date" : mode === "monthly" ? "Month" : "Cumulative To"}>
-          {mode === "monthly" ? (
-            <Select value={date.slice(0, 7)} onChange={(e) => setDate(e.target.value + "-01")}>
-              {data.months.map((m) => (
-                <option key={m} value={m}>
-                  {fmtMonthLabel(m)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <input
-              type="date"
-              value={date}
-              max={data.max_date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full border-0 bg-transparent text-sm font-semibold text-ink-800 outline-none"
-            />
-          )}
-        </FilterCard>
-        <FilterCard label="Product Category">
-          <Select
-            value={productFilter}
-            onChange={(e) => {
-              setProductFilter(e.target.value);
-              setSubproduct("All Sub-products");
-            }}
+    <div className="space-y-4">
+      {/* Hero: greeting + the three numbers that matter */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-400 via-brand-500 to-brand-700 p-4 text-white shadow-[var(--shadow-brand)] sm:p-6">
+        <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full bg-white/20 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-6 h-40 w-40 rounded-full bg-cyan-200/25 blur-2xl" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-white/80">Good day,</p>
+            <h1 className="font-display truncate text-2xl font-extrabold sm:text-3xl">{me?.mo_name || me?.username}</h1>
+          </div>
+          <button
+            onClick={() => setFilterOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3 py-2 text-[13px] font-semibold backdrop-blur transition-colors active:bg-white/30"
           >
-            <option value="All Products">All Products</option>
-            {productCards.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </FilterCard>
-        <FilterCard label="Sub Category">
-          <Select value={subproduct} onChange={(e) => setSubproduct(e.target.value)}>
-            <option value="All Sub-products">All Sub-products</option>
-            {data.subcategories.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        </FilterCard>
-      </div>
+            <CalendarDays size={15} />
+            {periodLabel}
+            <ChevronDown size={14} />
+          </button>
+        </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {wanted.map((p) => (
-          <ProductCard key={p.key} def={p} summary={summaryByKey[p.key]} />
-        ))}
+        <div className="relative mt-4 grid grid-cols-3 gap-2">
+          {kpis.map((k) => (
+            <div key={k.label} className="rounded-2xl bg-white/18 px-3 py-2.5 backdrop-blur-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">{k.label}</div>
+              <div className="font-display text-[22px] font-extrabold leading-tight">{k.value ?? "–"}</div>
+              <div className="text-[11px] text-white/75">{k.amount !== undefined ? `₹ ${fmtMoney(k.amount)} L` : " "}</div>
+            </div>
+          ))}
+        </div>
 
-        <Card className="sm:col-span-2 lg:col-span-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <SectionTitle title="Daily Performance" />
+        <div className="relative mt-3 flex items-center justify-between text-[11px] text-white/70">
+          <span>{data.last_updated ? `Updated ${data.last_updated}` : ""}</span>
+          <button onClick={() => setFilterOpen(true)} className="flex items-center gap-1 font-semibold text-white">
+            <SlidersHorizontal size={12} /> Filters
+          </button>
+        </div>
+      </section>
+
+      {/* Shortcuts */}
+      <Card className="!p-3">
+        <div className="grid grid-cols-4 gap-1">
+          {shortcuts.map((sc) => (
+            <IconGridItem key={sc.label} icon={sc.icon} tone={sc.tone} label={sc.label} onClick={() => navigate(sc.to)} />
+          ))}
+        </div>
+      </Card>
+
+      {/* Products: tap an icon to drill into its details */}
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-display text-[17px] font-extrabold text-ink-900">Products</h2>
+          <button onClick={() => navigate("/reports")} className="flex items-center text-[13px] font-semibold text-brand-600">
+            View All <ChevronRight size={15} />
+          </button>
+        </div>
+        <div className="grid grid-cols-4 gap-x-1 gap-y-2 sm:grid-cols-5 lg:grid-cols-10">
+          {wanted.map((p) => (
+            <IconGridItem
+              key={p.key}
+              icon={p.icon}
+              tone={p.tone}
+              label={p.short}
+              sub={summaryByKey[p.key]?.total_leads ?? 0}
+              onClick={() => openProduct(p.key)}
+            />
+          ))}
+        </div>
+      </Card>
+
+      {/* Insights: colorful cards, charts open in a sheet */}
+      <section>
+        <h2 className="font-display mb-2 px-1 text-[17px] font-extrabold text-ink-900">Insights</h2>
+        <div className="scrollbar-none -mx-4 flex scroll-px-4 snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0">
+          {insights.map((i) => (
+            <button
+              key={i.id}
+              onClick={() => setInsight(i.id)}
+              className={`relative flex h-32 w-40 shrink-0 snap-start flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br p-3.5 text-left shadow-[var(--shadow-soft)] transition-transform active:scale-95 sm:w-auto ${i.bg}`}
+            >
+              <i.icon size={64} strokeWidth={1.4} className={`absolute -bottom-3 -right-3 opacity-25 ${i.fg}`} />
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ${i.fg}`}>
+                <i.icon size={18} strokeWidth={2.2} />
+              </span>
+              <span>
+                <span className="block text-[14px] font-bold leading-tight text-ink-900">{i.title}</span>
+                <span className="text-[12px] font-medium text-ink-500">{i.sub}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Filters */}
+      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title="Filters">
+        <div className="space-y-4">
+          <Field label="View by">
+            <Segmented
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "monthly", label: "Monthly" },
+                { value: "daily", label: "Daily" },
+                { value: "cumulative", label: "Cumulative" },
+              ]}
+            />
+          </Field>
+          <Field label={mode === "daily" ? "Date" : mode === "monthly" ? "Month" : "Cumulative to"}>
+            {mode === "monthly" ? (
+              <Select value={date.slice(0, 7)} onChange={(e) => setDate(e.target.value + "-01")}>
+                {data.months.map((m) => (
+                  <option key={m} value={m}>
+                    {fmtMonthLabel(m)}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <input
+                type="date"
+                value={date}
+                max={data.max_date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+              />
+            )}
+          </Field>
+          <Field label="Product category">
             <Select
-              value={dailyProduct}
-              onChange={(e) => setDailyProduct(e.target.value)}
-              className="!w-auto text-xs"
+              value={productFilter}
+              onChange={(e) => {
+                setProductFilter(e.target.value);
+                setSubproduct("All Sub-products");
+              }}
             >
               <option value="All Products">All Products</option>
               {productCards.map((p) => (
@@ -166,27 +302,47 @@ export function DashboardPage() {
                 </option>
               ))}
             </Select>
-          </div>
-          {daily ? <DailyPerformanceChart rows={daily.rows} /> : <div className="h-52" />}
-        </Card>
-      </div>
+          </Field>
+          <Field label="Sub category">
+            <Select value={subproduct} onChange={(e) => setSubproduct(e.target.value)}>
+              <option value="All Sub-products">All Sub-products</option>
+              {data.subcategories.map((sc) => (
+                <option key={sc.value} value={sc.value}>
+                  {sc.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button variant="primary" className="w-full !h-12" onClick={() => setFilterOpen(false)}>
+            Show results
+          </Button>
+        </div>
+      </BottomSheet>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <SectionTitle title="Product-wise Lead Share" />
-          <LeadShareDonut data={donutData} />
-        </Card>
-        <Card>
-          <SectionTitle title="Product-wise Lead Pending" />
-          <SimpleBarList items={pendingData} color="#f59a23" />
-        </Card>
-        <Card>
-          <SectionTitle title="Product-wise Rejection" />
-          <SimpleBarList items={rejectedData} color="#ef5a79" />
-        </Card>
-      </div>
-
-      <div className="mt-4 text-right text-xs text-ink-400">Last updated on {data.last_updated || "Not available"}</div>
+      {/* Insight detail */}
+      <BottomSheet
+        open={insight !== null}
+        onClose={() => setInsight(null)}
+        title={insights.find((i) => i.id === insight)?.title ?? ""}
+      >
+        <p className="mb-3 text-xs text-ink-400">{periodLabel}</p>
+        {insight === "daily" && (
+          <>
+            <Select value={dailyProduct} onChange={(e) => setDailyProduct(e.target.value)} className="mb-3">
+              <option value="All Products">All Products</option>
+              {productCards.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+            {daily ? <DailyPerformanceChart rows={daily.rows} /> : <Loading />}
+          </>
+        )}
+        {insight === "share" && <LeadShareDonut data={donutData} />}
+        {insight === "pending" && <SimpleBarList items={pendingData} color="#f5a30b" />}
+        {insight === "rejected" && <SimpleBarList items={rejectedData} color="#f43f5e" />}
+      </BottomSheet>
     </div>
   );
 }

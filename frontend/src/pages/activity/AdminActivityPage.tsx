@@ -7,10 +7,13 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { Field, Select, Input } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
 import { Tabs } from "../../components/ui/Segmented";
+import { ResponsiveFilters } from "../../components/ui/ResponsiveFilters";
+import { BottomSheet } from "../../components/ui/BottomSheet";
+import { Download } from "lucide-react";
 import { DataTable, type TableRows } from "../../components/ui/DataTable";
 import { StatGrid, StatTile } from "../../components/ui/StatTile";
 import { Loading, Alert } from "../../components/ui/Feedback";
-import { fmtDate } from "../../lib/format";
+import { fmtDate, todayLocal } from "../../lib/format";
 
 const DOWNLOAD_CARDS = [
   { type: "monitoring", title: "Daily Monitoring Status", desc: "Tour Plan + Daily Tour Report + CO status" },
@@ -20,11 +23,12 @@ const DOWNLOAD_CARDS = [
 ];
 
 export function AdminActivityPage() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [mo, setMo] = useState("All Officers");
   const [show, setShow] = useState("all");
   const [focus, setFocus] = useState("all");
   const [detailTab, setDetailTab] = useState("plans");
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
 
   const { data, error } = useQuery({
     queryKey: ["admin-mo-activity", date, mo, show, focus],
@@ -89,10 +93,17 @@ export function AdminActivityPage() {
     <div>
       <PageHeader title="MO Activity Monitor" subtitle="View tour plans, daily tour reporting and CO reporting of all Marketing Officers" />
 
-      <Card className="mb-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4">
+        <ResponsiveFilters
+          summary={`${date ? fmtDate(date) : "All dates"} • ${mo === "All Officers" ? "All officers" : mo}${show === "no" ? " • Not done" : ""}`}
+        >
           <Field label="Date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <div className="flex gap-2">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Button size="sm" className="!h-auto shrink-0" onClick={() => setDate("")}>
+                All dates
+              </Button>
+            </div>
           </Field>
           <Field label="Marketing Officer">
             <Select value={mo} onChange={(e) => setMo(e.target.value)}>
@@ -118,21 +129,27 @@ export function AdminActivityPage() {
               <option value="co_report">CO Report</option>
             </Select>
           </Field>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button variant="primary" size="sm" onClick={() => setDate(date)}>
-            Apply
-          </Button>
-          <Button size="sm" onClick={() => setDate("")}>
-            All Dates
-          </Button>
-          <span className="text-xs text-ink-400">
-            Select <b>No — Not Done</b> to immediately identify MOs who have not completed the selected activity.
-          </span>
-        </div>
-      </Card>
+        </ResponsiveFilters>
+        <p className="mt-2 hidden px-1 text-xs text-ink-400 md:block">
+          Select <b>No — Not Done</b> to immediately identify MOs who have not completed the selected activity.
+        </p>
+      </div>
 
-      <Card className="mb-4">
+      {/* Phones: one button -> sheet. Larger screens: the card grid. */}
+      <button
+        onClick={() => setDownloadsOpen(true)}
+        className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-white px-3.5 py-2.5 text-left shadow-[var(--shadow-soft)] active:scale-[0.99] md:hidden"
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <Download size={14} />
+        </span>
+        <span>
+          <span className="block text-[13px] font-bold text-ink-900">Download reports</span>
+          <span className="block text-[11.5px] text-ink-500">Excel or PDF, uses the filters above</span>
+        </span>
+      </button>
+
+      <Card className="mb-4 hidden md:block">
         <SectionTitle title="Download Reports" action={<span className="text-xs text-ink-400">Downloads use the selected date, MO and No filter.</span>} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {DOWNLOAD_CARDS.map((c) => (
@@ -151,6 +168,27 @@ export function AdminActivityPage() {
           ))}
         </div>
       </Card>
+
+      <BottomSheet open={downloadsOpen} onClose={() => setDownloadsOpen(false)} title="Download reports">
+        <ul className="divide-y divide-ink-100">
+          {DOWNLOAD_CARDS.map((c) => (
+            <li key={c.type} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-ink-900">{c.title}</div>
+                <div className="text-xs text-ink-400">{c.desc}</div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="sm" onClick={() => download(c.type, "excel")}>
+                  Excel
+                </Button>
+                <Button size="sm" variant="primary" onClick={() => download(c.type, "pdf")}>
+                  PDF
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </BottomSheet>
 
       {error && <Alert>{(error as Error).message}</Alert>}
       {!data && !error && <Loading />}
@@ -172,6 +210,8 @@ export function AdminActivityPage() {
               action={<span className="text-xs text-ink-400">{date ? fmtDate(date) : "All selected dates"}{show === "no" ? " • Showing Not Done" : ""}</span>}
             />
             <DataTable
+              titleKey="mo_name"
+              summaryKeys={["tour_plan", "co_report"]}
               columns={[
                 { key: "date", label: "Date" },
                 { key: "mo_name", label: "MO Name" },
@@ -209,7 +249,7 @@ export function AdminActivityPage() {
                 </div>
               }
             />
-            <DataTable columns={detailCols} rows={detailRows} />
+            <DataTable titleKey="mo_name" columns={detailCols} rows={detailRows} />
           </Card>
         </>
       )}

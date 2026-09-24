@@ -34,7 +34,7 @@ export function TargetsPage() {
         </div>
         {error && <Alert>{(error as Error).message}</Alert>}
         {!data && !error && <Loading />}
-        {data && <DataTable columns={columns} rows={rows} />}
+        {data && <DataTable titleKey="name" columns={columns} rows={rows} />}
       </Card>
     </div>
   );

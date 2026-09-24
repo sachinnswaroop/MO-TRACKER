@@ -15,8 +15,8 @@ export function Logo({ size = 44, className = "" }: { size?: number; className?:
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#4f8bff" />
-          <stop offset="1" stopColor="#1a44ab" />
+          <stop offset="0" stopColor="#2fd0ff" />
+          <stop offset="1" stopColor="#1467f0" />
         </linearGradient>
       </defs>
       <rect width="44" height="44" rx="12" fill={`url(#${gradientId})`} />

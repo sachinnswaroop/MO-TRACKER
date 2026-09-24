@@ -24,11 +24,13 @@ export function NotificationsPage() {
         {!data && !error && <Loading />}
         {data && (
           <DataTable
+            titleKey="mo"
+            summaryKeys={["type", "achievement"]}
             columns={[
               { key: "type", label: "Type" },
               { key: "mo", label: "MO Name" },
               { key: "cac", label: "CAC" },
-              { key: "achievement", label: "Achievement %" },
+              { key: "achievement", label: "Achievement %", render: (v) => `${Number(v || 0).toFixed(1)}%` },
               { key: "target", label: "Target" },
               { key: "actual", label: "Actual" },
             ]}
