@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileDown, FileSpreadsheet, Printer } from "lucide-react";
+import { ChevronDown, FileDown, FileSpreadsheet, Printer } from "lucide-react";
 import { apiGet, downloadFile } from "../lib/api";
-import type { CoReportGroups } from "../lib/types";
+import type { AppState, CoReportGroups } from "../lib/types";
 import { CO_REPORT_TABS, buildCoTable, type CoReportType } from "../lib/coReport";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Segmented, Tabs } from "../components/ui/Segmented";
@@ -10,6 +10,7 @@ import { Field, Input } from "../components/ui/Field";
 import { Button } from "../components/ui/Button";
 import { ResponsiveFilters } from "../components/ui/ResponsiveFilters";
 import { DataTable } from "../components/ui/DataTable";
+import { CoBreakdown } from "../components/co/CoBreakdown";
 import { Loading, Alert } from "../components/ui/Feedback";
 import { fmtDate, todayLocal } from "../lib/format";
 
@@ -17,12 +18,17 @@ type Mode = "monthly" | "cumulative";
 
 export function CoReportPage() {
   const [mode, setMode] = useState<Mode>("monthly");
-  const [date, setDate] = useState(todayLocal());
+  // Default to the latest date in the uploaded file: daily reports for a date past it are empty.
+  const { data: appState } = useQuery({ queryKey: ["state"], queryFn: () => apiGet<AppState>("/api/state") });
+  const [pickedDate, setDate] = useState("");
+  const date = pickedDate || appState?.report_date || todayLocal();
   const [coType, setCoType] = useState<CoReportType>("I");
+  const [showRaw, setShowRaw] = useState(false);
 
   const { data, error } = useQuery({
     queryKey: ["co-report", coType, mode, date],
     queryFn: () => apiGet<CoReportGroups>("/api/co-report", { report_type: coType, mode, report_date: date, daily_date: date }),
+    enabled: appState !== undefined,
   });
 
   function download(kind: "excel" | "pdf") {
@@ -78,7 +84,22 @@ export function CoReportPage() {
               {coType.startsWith("VI") ? `Date: ${fmtDate(data.date)}` : `${fmtDate(data.start)} to ${fmtDate(data.end)}`}
             </div>
           </div>
-          <DataTable titleKey="mo" columns={table.columns} rows={table.rows} />
+          <CoBreakdown type={coType} rows={data.rows} />
+
+          <div className="mt-5">
+            <button
+              onClick={() => setShowRaw((v) => !v)}
+              className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left text-[13px] font-bold text-ink-700 shadow-[var(--shadow-soft)]"
+            >
+              Full table ({table.rows.length} rows)
+              <ChevronDown size={18} className={`text-ink-300 transition-transform ${showRaw ? "rotate-180" : ""}`} />
+            </button>
+            {showRaw && (
+              <div className="mt-3">
+                <DataTable titleKey="mo" columns={table.columns} rows={table.rows} />
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
