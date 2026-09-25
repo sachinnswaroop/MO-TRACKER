@@ -14,9 +14,9 @@ import { CoReportForm } from "./CoReportForm";
 import { todayLocal } from "../../lib/format";
 
 const TABS: { id: string; title: string; sub: string; icon: LucideIcon; tone: Tone }[] = [
-  { id: "plan", title: "Tour Plan", sub: "Plan today's or tomorrow's visits", icon: Route, tone: "green" },
+  { id: "plan", title: "Tour Plan", sub: "Plan today and the next two days", icon: Route, tone: "green" },
   { id: "tour", title: "Tour Report", sub: "Log today's leads and visits", icon: ClipboardCheck, tone: "cyan" },
-  { id: "co", title: "CO Reporting", sub: "LMS updation and Google Form", icon: FileSpreadsheet, tone: "teal" },
+  { id: "co", title: "CO Reporting", sub: "Today's LMS updation and Google Form", icon: FileSpreadsheet, tone: "teal" },
 ];
 
 export function MoActivityPage() {

@@ -5,9 +5,9 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { Field, Input } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
-import { DataTable } from "../../components/ui/DataTable";
+import { EmptyState } from "../../components/ui/Feedback";
 import type { TourReport } from "../../lib/types";
-import { todayLocal } from "../../lib/format";
+import { fmtDate, todayLocal } from "../../lib/format";
 
 const PAIRS: { key: string; label: string }[] = [
   { key: "home_loan", label: "Home Loan" },
@@ -114,18 +114,36 @@ export function TourReportForm({ history }: { history: TourReport[] }) {
 
       <Card>
         <SectionTitle title="Saved Tour Reports" />
-        <DataTable
-          columns={[
-            { key: "date", label: "Date" },
-            { key: "home_loan_no", label: "Home No." },
-            { key: "home_loan_amt", label: "Home Amt." },
-            { key: "vehicle_loan_no", label: "Vehicle No." },
-            { key: "vehicle_loan_amt", label: "Vehicle Amt." },
-            { key: "deposits_no", label: "Deposits No." },
-            { key: "deposits_amt", label: "Deposits Amt." },
-          ]}
-          rows={history.slice().reverse()}
-        />
+        {history.length === 0 ? (
+          <EmptyState>No tour reports saved yet.</EmptyState>
+        ) : (
+          <ul className="space-y-3">
+            {history
+              .slice()
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .map((r) => (
+                <li key={r.id ?? r.date} className="overflow-hidden rounded-2xl border border-ink-200/70">
+                  <div className="bg-ink-50 px-3.5 py-2 text-[13.5px] font-extrabold text-ink-900">{fmtDate(r.date)}</div>
+                  <dl className="divide-y divide-ink-100 text-[13px]">
+                    {PAIRS.map((p) => (
+                      <div key={p.key} className="flex items-center justify-between px-3.5 py-2">
+                        <dt className="text-ink-500">{p.label}</dt>
+                        <dd className="font-semibold tabular-nums text-ink-900">
+                          {Number(r[`${p.key}_no` as keyof TourReport] ?? 0)} leads · ₹ {Number(r[`${p.key}_amt` as keyof TourReport] ?? 0).toFixed(2)} L
+                        </dd>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-3.5 py-2">
+                      <dt className="text-ink-500">Tie-ups</dt>
+                      <dd className="font-semibold tabular-nums text-ink-900">
+                        Builder {Number(r.builder_tieup ?? 0)} · Dealer {Number(r.dealer_tieup ?? 0)}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+          </ul>
+        )}
       </Card>
     </div>
   );

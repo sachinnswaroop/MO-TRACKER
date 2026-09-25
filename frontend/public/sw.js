@@ -1,8 +1,8 @@
 // Minimal app-shell service worker. Never touches /api or /download so data is
 // always live; only the static shell is cached to make launches instant and
 // let the installed app open (with cached UI) even on a weak connection.
-const CACHE = "mo-tracker-shell-v1";
-const PRECACHE = ["/", "/manifest.json", "/logo.svg", "/icon-192.png"];
+const CACHE = "mo-tracker-shell-v2";
+const PRECACHE = ["/", "/manifest.json", "/favicon.png", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

@@ -17,6 +17,7 @@ export interface AppState {
   rows: number;
   date_from: string | null;
   report_date: string | null;
+  months?: string[];
   last_updated?: string | null;
 }
 
@@ -64,6 +65,7 @@ export interface DashboardCard {
 }
 
 export interface DashboardData {
+  total: Summary;
   mode: string;
   start: string;
   end: string;
@@ -253,8 +255,41 @@ export type MonthlyTargets = Record<
   { retail: Record<string, number>; deposits: Record<string, number> }
 >;
 
+export interface TargetSet {
+  retail: Record<string, number>;
+  deposits: Record<string, number>;
+}
+
+export interface OfficerTargets {
+  user_id: string;
+  name: string;
+  cac: string;
+  targets: TargetSet;
+}
+
 export interface TargetsData {
   targets: MonthlyTargets;
+  officers: OfficerTargets[];
+}
+
+export interface RejectionRow {
+  key?: string;
+  label?: string;
+  mo?: string;
+  cac?: string;
+  total: number;
+  rejected: number;
+  pct: number;
+}
+
+export interface RejectionData {
+  mode: string;
+  start: string;
+  end: string;
+  product?: string;
+  label?: string;
+  rows: RejectionRow[];
+  total: { total: number; rejected: number; pct: number };
 }
 
 export interface MoReportRow {
@@ -269,6 +304,7 @@ export interface MoReportRow {
 
 export interface CoReportGroups {
   type: string;
+  months?: number;
   start?: string;
   end?: string;
   date?: string;

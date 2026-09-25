@@ -30,3 +30,17 @@ export function fmtMonthShort(monthStr: string): string {
 export function todayLocal(): string {
   return new Date().toLocaleDateString("en-CA");
 }
+
+/** Local date n days from today, as YYYY-MM-DD. */
+export function addDaysLocal(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString("en-CA");
+}
+
+/** "Fri, 25 Sep" for a YYYY-MM-DD string. */
+export function fmtDay(v: string): string {
+  const d = new Date(v + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return v;
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+}

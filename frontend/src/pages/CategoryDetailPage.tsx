@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiGet } from "../lib/api";
 import type { CategoryReportData } from "../lib/types";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -7,19 +7,31 @@ import { Card, SectionTitle } from "../components/ui/Card";
 import { DataTable } from "../components/ui/DataTable";
 import { IconTile } from "../components/ui/IconTile";
 import { Loading, Alert } from "../components/ui/Feedback";
-import { fmtDate, fmtMoney } from "../lib/format";
+import { Segmented, Tabs } from "../components/ui/Segmented";
+import { Input } from "../components/ui/Field";
+import { fmtDate, fmtMoney, fmtMonthShort } from "../lib/format";
 import { productCards } from "../lib/productCards";
 
 export function CategoryDetailPage() {
   const { key = "" } = useParams();
-  const [params] = useSearchParams();
-  const mode = params.get("mode") || "cumulative";
+  const [params, setParams] = useSearchParams();
+  const mode = (params.get("mode") || "monthly") as "daily" | "monthly" | "cumulative";
   const date = params.get("date") || undefined;
+
+  // Switch Monthly / Daily / Cumulative right here, no need to go back to the dashboard.
+  function update(next: { mode?: string; date?: string }) {
+    const q = new URLSearchParams(params);
+    if (next.mode) q.set("mode", next.mode);
+    if (next.date !== undefined) q.set("date", next.date);
+    else if (next.mode) q.delete("date");
+    setParams(q, { replace: true });
+  }
   const def = productCards.find((p) => p.key === key);
 
   const { data, error } = useQuery({
     queryKey: ["category-report", key, mode, date],
     queryFn: () => apiGet<CategoryReportData>("/api/category-report", { category: key, mode, report_date: date }),
+    placeholderData: keepPreviousData,
   });
 
   if (error) return <Alert>{(error as Error).message}</Alert>;
@@ -37,6 +49,38 @@ export function CategoryDetailPage() {
         title={def?.name ?? key}
         subtitle={`${mode === "monthly" ? "Monthly" : mode === "daily" ? "Daily" : "Cumulative"} • ${fmtDate(data.start)} to ${fmtDate(data.end)}`}
       />
+
+      <div className="mb-3">
+        <Segmented
+          value={mode}
+          onChange={(m) => update({ mode: m })}
+          options={[
+            { value: "daily", label: "Daily" },
+            { value: "monthly", label: "Monthly" },
+            { value: "cumulative", label: "Cumulative" },
+          ]}
+        />
+      </div>
+      {mode === "monthly" && data.months.length > 0 && (
+        <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <Tabs
+            value={data.end.slice(0, 7)}
+            onChange={(m) => update({ date: m + "-01" })}
+            options={data.months.map((m) => ({ value: m, label: fmtMonthShort(m) }))}
+          />
+        </div>
+      )}
+      {mode !== "monthly" && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold text-ink-500">{mode === "daily" ? "Date" : "Up to"}</span>
+          <Input
+            type="date"
+            className="!w-auto"
+            value={data.end}
+            onChange={(e) => e.target.value && update({ date: e.target.value })}
+          />
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-3 gap-2.5">
         {stats.map((s) => (

@@ -116,3 +116,15 @@ Table for the report tables, Recharts for the bar/donut charts. Same FastAPI
 backend and endpoints throughout — this is a frontend-only swap. FastAPI would
 serve the built static assets (or Vercel serves them via the `public/`
 convention) alongside the existing API routes.
+
+## Change log: MO Tracker Modification (Sep 2026)
+
+- Dashboard: Daily / Monthly / Cumulative switch on the hero card; hero slides (All, Deposits, Retail, Savings, Current, ...) via the `>` button or swipe; period label shows the month/date range in use. Front-page shortcut renamed "Pending". Home icon = house, Activity icon = activity-user icon.
+- Rejections (dashboard insight): Rejection No. and % per product (Non Converted + Not Interested, % = rejected x 100 / total leads of the product); tap a product for MO-wise list sorted high to low; Excel/PDF download (`/api/rejections`, `/download/rejection-excel|pdf`).
+- Products (category detail): Monthly / Daily / Cumulative switch on the page itself.
+- Tour Plan: only today and the next two days (server-enforced); edit and delete; saved plans grouped date-wise. Tour Report: every field (other retail, 3rd party, tie-ups) is shown in the saved list. CO Reporting: today only (server saves against today, IST).
+- Admin MO Activity Monitor: Tour Plan (Planned / Not Planned), Tour Reports (Reported / Not Reported), CO Reporting (Reported / Not Reported); tap a tile for the officers, download Excel / PDF or share on WhatsApp. "GKB@ Bhopal Zone" is shown beside the admin name.
+- Targets are editable by admin (`PUT /api/targets`, stored in `users.targets`, migration 0002). Cumulative reports use monthly target x months elapsed from the first month in the data (Jul-Sep = 3x; from 1 Oct = 4x).
+- Report downloads: whole numbers without decimals, amounts to 2 dp, all figures right-aligned (Excel and PDF); Excel now also works for Report VI-D / VI-R. CO Report shows month tabs from the months in the data.
+- User Management: admin can add an MO (`POST /api/users/mo`), delete an MO (`DELETE /api/users/{id}`, also removes their activity) and reset any password. The MO roster is now read from the users table (no longer hard-coded). New MO: Nimisha Gupta (mo23, CAC Bhopal).
+- App icon: Central Bank artwork (`frontend/public/icon-*.png`, `apple-touch-icon.png`, `favicon.png`).

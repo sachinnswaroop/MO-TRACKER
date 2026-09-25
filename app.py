@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import JSONResponse, Response, FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 import pandas as pd
-import os, io
+import os, io, re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import db
@@ -44,6 +44,7 @@ MARKETING_OFFICERS = [
     ("Jajvalya Holkar", "Indore"), ("Sakshi Jain", "Indore"),
     ("Sudhanshu Soni", "Indore"), ("Ganesh Amkare", "Indore"),
     ("Akshay Chourasia", "Jabalpur"), ("Somesh Gautam", "Jabalpur"),
+    ("Nimisha Gupta", "Bhopal"),
 ]
 
 PRODUCT_GROUPS = {
@@ -82,7 +83,13 @@ MONTHLY_TARGETS = {
     "Ganesh Amkare": {"retail": {"Home Loan": 3.00, "Vehicle Loan": 1.00, "Education Loan/Personal Loan": 0.50}, "deposits": {"SB": 75, "CD": 15, "Salary": 25}},
     "Akshay Chourasia": {"retail": {"Home Loan": 3.00, "Vehicle Loan": 1.00, "Education Loan/Personal Loan": 0.50}, "deposits": {"SB": 75, "CD": 15, "Salary": 25}},
     "Somesh Gautam": {"retail": {"Home Loan": 3.00, "Vehicle Loan": 1.00, "Education Loan/Personal Loan": 0.50}, "deposits": {"SB": 75, "CD": 15, "Salary": 25}},
+    "Nimisha Gupta": {"retail": {"Home Loan": 5.00, "Vehicle Loan": 1.00, "Education Loan/Personal Loan": 1.00}, "deposits": {"SB": 50, "CD": 10, "Salary": 30}},
 }
+DEFAULT_TARGET = {"retail": {"Home Loan": 5.00, "Vehicle Loan": 1.00, "Education Loan/Personal Loan": 1.00}, "deposits": {"SB": 50, "CD": 10, "Salary": 30}}
+RETAIL_KEYS = ["Home Loan", "Vehicle Loan", "Education Loan/Personal Loan"]
+DEPOSIT_KEYS = ["SB", "CD", "Salary"]
+# Lead statuses counted as a rejection.
+REJECT_STATUSES = ["NON CONVERTED", "NOT INTERESTED"]
 
 DATA = {"df": None, "filename": None, "last_updated": None}
 def activity_store():
@@ -94,6 +101,51 @@ def role_is_mo(request):
 
 def users():
     return db.seed_missing_users(build_default_users())
+
+
+def _num(v, default=0.0):
+    try: return float(v)
+    except (TypeError, ValueError): return default
+
+
+def targets_of(info):
+    """Monthly targets of a user: the admin-edited ones, else the built-in defaults."""
+    t = info.get("targets") or MONTHLY_TARGETS.get(info.get("mo_name") or info.get("name"), DEFAULT_TARGET)
+    return {
+        "retail": {k: round(_num(t.get("retail", {}).get(k)), 2) for k in RETAIL_KEYS},
+        "deposits": {k: int(round(_num(t.get("deposits", {}).get(k)))) for k in DEPOSIT_KEYS},
+    }
+
+
+def roster():
+    """All Marketing Officers (from the users table, so admin can add/remove them) with their monthly targets."""
+    def order(item):
+        digits = "".join(ch for ch in item[0] if ch.isdigit())
+        return int(digits) if digits else 10**6
+    out = []
+    for uid, info in sorted(users().items(), key=order):
+        if info.get("role") != "mo": continue
+        name = info.get("mo_name") or info.get("name") or uid
+        out.append({"user_id": uid, "name": name, "cac": info.get("cac", ""), "targets": targets_of(info)})
+    return out
+
+
+def months_mult(mode, start, end):
+    """Cumulative reports compare against the monthly target x months elapsed (e.g. Jul-Sep = 3 x target)."""
+    if mode != "cumulative": return 1
+    s, e = pd.Timestamp(start), pd.Timestamp(end)
+    return max(1, (e.year - s.year) * 12 + e.month - s.month + 1)
+
+
+def scale_targets(t, mult):
+    return {
+        "retail": {k: round(v * mult, 2) for k, v in t["retail"].items()},
+        "deposits": {k: int(round(v * mult)) for k, v in t["deposits"].items()},
+    }
+
+
+def ist_today():
+    return datetime.now(ZoneInfo("Asia/Kolkata")).date()
 
 
 def clean_text(v):
@@ -178,10 +230,6 @@ def actual_progress(df):
     return number, money_lakh(amount)
 
 
-def target_config(name):
-    return MONTHLY_TARGETS.get(name, {"retail": {}, "deposits": {}})
-
-
 def achievement(actual, target): return round(float(actual) / float(target) * 100, 1) if float(target or 0) else 0.0
 
 
@@ -217,13 +265,13 @@ def filter_df(df, start, end, region="All Regions", product="All Products", mo="
 def summary(df):
     converted = df[df["Status_Clean"] == "CONVERTED"]; pending = df[df["Status_Clean"].isin(["OPEN", "UNDER PROCESS"])]
     actual_n, actual_amt = actual_progress(df)
-    return {"total_leads": int(len(df)), "lead_amount_lakh": money_lakh(df["Amount"].sum()), "converted": int(len(converted)), "converted_actual_number": int(actual_n), "converted_actual_amount_lakh": actual_amt, "pending": int(len(pending)), "pending_amount_lakh": money_lakh(pending["Amount"].sum()), "rejected": int(df["Status_Clean"].isin(["NON CONVERTED","NOT INTERESTED","REJECTED","REJECT"]).sum()), "conversion_pct": round(len(converted)/len(df)*100,1) if len(df) else 0}
+    return {"total_leads": int(len(df)), "lead_amount_lakh": money_lakh(df["Amount"].sum()), "converted": int(len(converted)), "converted_actual_number": int(actual_n), "converted_actual_amount_lakh": actual_amt, "pending": int(len(pending)), "pending_amount_lakh": money_lakh(pending["Amount"].sum()), "rejected": int(df["Status_Clean"].isin(REJECT_STATUSES).sum()), "conversion_pct": round(len(converted)/len(df)*100,1) if len(df) else 0}
 
 
 def product_row(df, group):
     m=df[df["Group"]==group]; conv=m[m["Status_Clean"]=="CONVERTED"]; pending=m[m["Status_Clean"].isin(["OPEN","UNDER PROCESS"])]
     an, aa=actual_progress(m)
-    return {"group":group,"total_leads":int(len(m)),"lead_amount_lakh":money_lakh(m["Amount"].sum()),"converted":int(len(conv)),"converted_actual_number":an,"converted_actual_amount_lakh":aa,"pending":int(len(pending)),"pending_amount_lakh":money_lakh(pending["Amount"].sum()),"rejected":int(m["Status_Clean"].isin(["NON CONVERTED","NOT INTERESTED","REJECTED","REJECT"]).sum())}
+    return {"group":group,"total_leads":int(len(m)),"lead_amount_lakh":money_lakh(m["Amount"].sum()),"converted":int(len(conv)),"converted_actual_number":an,"converted_actual_amount_lakh":aa,"pending":int(len(pending)),"pending_amount_lakh":money_lakh(pending["Amount"].sum()),"rejected":int(m["Status_Clean"].isin(REJECT_STATUSES).sum())}
 
 
 def status_rows(df):
@@ -244,10 +292,11 @@ def subproduct_rows(df, group=None):
     return rows
 
 
-def mo_rows(df):
+def mo_rows(df, mult=1):
     rows=[]
-    for name,cac in MARKETING_OFFICERS:
-        m=df[df["MO_Clean"]==name.upper()]; s=summary(m); cfg=target_config(name)
+    for mo in roster():
+        name,cac=mo["name"],mo["cac"]
+        m=df[df["MO_Clean"]==name.upper()]; s=summary(m); cfg=scale_targets(mo["targets"],mult)
         retail_actual={"Home Loan":0,"Vehicle Loan":0,"Education Loan/Personal Loan":0}
         mapping={"Home Loan":["HOUSING LOAN"],"Vehicle Loan":["CAR LOAN"],"Education Loan/Personal Loan":["EDUCATION LOAN","PERSONAL LOAN"]}
         for label,subs in mapping.items():
@@ -269,7 +318,8 @@ def cac_groups(rows):
 
 def daily_deposit(df, date):
     day=pd.Timestamp(date).date(); m=df[df["AssignedDate"].dt.date==day]; rows=[]
-    for name,cac in MARKETING_OFFICERS:
+    for mo in roster():
+        name,cac=mo["name"],mo["cac"]
         x=m[m["MO_Clean"]==name.upper()]
         def cnt(sub,status=None):
             q=x[x["Sub_Clean"]==sub]
@@ -281,7 +331,8 @@ def daily_deposit(df, date):
 def daily_retail(df, date):
     day=pd.Timestamp(date).date(); m=df[df["AssignedDate"].dt.date==day]; rows=[]
     categories={"Home Loan":["HOUSING LOAN"],"Vehicle Loan":["CAR LOAN"],"Edu/Personal Loan":["EDUCATION LOAN","PERSONAL LOAN"],"Retail Loan":["RETAIL - GOLD LOAN","RETAIL - OTHER"]}
-    for name,cac in MARKETING_OFFICERS:
+    for mo in roster():
+        name,cac=mo["name"],mo["cac"]
         x=m[m["MO_Clean"]==name.upper()]; row={"mo":name,"cac":cac}
         for label,subs in categories.items():
             q=x[x["Sub_Clean"].isin(subs)]; conv=q[q["Status_Clean"]=="CONVERTED"]
@@ -293,20 +344,21 @@ def daily_retail(df, date):
 def co_report_data(report_type, mode="monthly", report_date=None, daily_date=None):
     df=DATA["df"]
     maxd=df["AssignedDate"].max(); rd=pd.Timestamp(report_date) if report_date else maxd; start,end=period_bounds(mode,rd); m=filter_df(df,start,end)
-    if report_type=="I": return {"type":"I","start":start,"end":end,"rows":mo_rows(m),"groups":cac_groups(mo_rows(m))}
-    if report_type=="II": return {"type":"II","start":start,"end":end,"rows":mo_rows(m),"groups":cac_groups(mo_rows(m))}
-    if report_type in {"III","IV","V"}: return {"type":report_type,"start":start,"end":end,"rows":mo_rows(m),"groups":cac_groups(mo_rows(m))}
+    if report_type in {"I","II","III","IV","V"}:
+        rows=mo_rows(m,months_mult(mode,start,end))
+        return {"type":report_type,"start":start,"end":end,"months":months_mult(mode,start,end),"rows":rows,"groups":cac_groups(rows)}
     if report_type=="VI-D":
         dd=pd.Timestamp(daily_date or maxd).date(); return {"type":"VI-D","date":dd,"rows":daily_deposit(df,dd)}
     dd=pd.Timestamp(daily_date or maxd).date(); return {"type":"VI-R","date":dd,"rows":daily_retail(df,dd)}
 
 
-def report_extended_rows(df):
+def report_extended_rows(df, mult=1):
     rows=[]
-    for name,cac in MARKETING_OFFICERS:
+    for mo in roster():
+        name,cac=mo["name"],mo["cac"]
         m=df[df["MO_Clean"]==name.upper()]
         s=summary(m)
-        cfg=target_config(name)
+        cfg=scale_targets(mo["targets"],mult)
         retail_actual={"Home Loan":0.0,"Vehicle Loan":0.0,"Education Loan/Personal Loan":0.0}
         mapping={"Home Loan":["HOUSING LOAN"],"Vehicle Loan":["CAR LOAN"],"Education Loan/Personal Loan":["EDUCATION LOAN","PERSONAL LOAN"]}
         for label,subs in mapping.items():
@@ -327,8 +379,8 @@ def report_extended_rows(df):
         rows.append({"mo":name,"cac":cac,"leads":s["total_leads"],"lead_amount_lakh":s["lead_amount_lakh"],"converted":s["converted"],"converted_actual_amount_lakh":s["converted_actual_amount_lakh"],"pending":s["pending"],"pending_amount_lakh":s["pending_amount_lakh"],"retail_target_cr":sum(retail_target.values()),"retail_actual_cr":retail_actual["Total Retail"],"retail_ach_pct":retail_ach,"deposit_target_no":sum(dep_target.values()),"deposit_actual_no":dep_actual["Total Deposits"],"deposit_ach_pct":dep_ach,"retail_target":retail_target,"retail_actual":retail_actual,"deposit_target":dep_target,"deposit_actual":dep_actual})
     return rows
 
-def extended_report(df):
-    mos=report_extended_rows(df)
+def extended_report(df, mult=1):
+    mos=report_extended_rows(df,mult)
     pending=df[df["Status_Clean"].isin(["OPEN","UNDER PROCESS"])]
     # Nil: zero actual against the relevant monthly target, separately for Retail and Deposits.
     nil_retail=[r for r in mos if r["retail_actual_cr"]<=0 and r["retail_target_cr"]>0]
@@ -404,8 +456,56 @@ def _report_rows(report_type, data):
     return rows
 
 
+def _style_report_sheet(ws, money_all=False):
+    """Whole numbers without decimals, amounts to 2 dp, percentages to 1 dp, every figure right aligned."""
+    from openpyxl.styles import Alignment, Font
+    from openpyxl.utils import get_column_letter
+    for c in ws[1]:
+        c.font=Font(bold=True); c.alignment=Alignment(horizontal="center",vertical="center",wrap_text=True)
+    for idx,c in enumerate(ws[1],start=1):
+        h=str(c.value or "")
+        if "%" in h: fmt="0.0"
+        elif h.startswith("Sl"): fmt="0"
+        elif money_all or "Amt" in h or "Cr" in h: fmt="0.00"
+        else: fmt="0"
+        width=len(h)
+        for row in ws.iter_rows(min_row=2,min_col=idx,max_col=idx):
+            cell=row[0]; v=cell.value
+            width=max(width,len(str(v)) if v is not None else 0)
+            if isinstance(v,(int,float)) and not isinstance(v,bool):
+                cell.number_format=fmt; cell.alignment=Alignment(horizontal="right")
+        ws.column_dimensions[get_column_letter(idx)].width=min(max(width+2,10),34)
+    ws.freeze_panes="A2"
+
+
+def _tidy(v):
+    """Stop float noise (1.4700000000000002) reaching a report; whole floats become ints."""
+    if isinstance(v,float):
+        v=round(v,2)
+        return int(v) if v==int(v) else v
+    return v
+
+
 def report_excel(report_type, data):
     out=io.BytesIO()
+    if report_type in ("VI-D","VI-R"):
+        if report_type=="VI-D":
+            cols=["MO Name","CAC Name","SB Lead No.","SB Converted No.","CD Lead No.","CD Converted No.","Salary Lead No.","Salary Converted No."]
+            rows=[[r["mo"],r["cac"],r["sb_lead"],r["sb_conv"],r["cd_lead"],r["cd_conv"],r["salary_lead"],r["salary_conv"]] for r in data["rows"]]
+            sheet="Daily Deposit"
+        else:
+            cols=["MO Name","CAC Name"]+[f"{n} {k}" for n in ["Home","Vehicle","Edu-Personal","Retail"] for k in ["Lead No.","Converted No.","Lead Amt Cr","Converted Amt Cr"]]
+            rows=[]
+            for r in data["rows"]:
+                v=[r["mo"],r["cac"]]
+                for k in ["Home Loan","Vehicle Loan","Edu/Personal Loan","Retail Loan"]:
+                    q=r[k]; v+=[q["lead_no"],q["converted_no"],q["lead_amt_crore"],q["converted_amt_crore"]]
+                rows.append(v)
+            sheet="Daily Retail"
+        with pd.ExcelWriter(out,engine="openpyxl") as writer:
+            pd.DataFrame(rows,columns=cols).map(_tidy).to_excel(writer,index=False,sheet_name=sheet)
+            _style_report_sheet(writer.book[sheet])
+        out.seek(0); return out.getvalue()
     with pd.ExcelWriter(out,engine="openpyxl") as writer:
         rows=_report_rows(report_type,data)
         export=[]; no=1
@@ -432,7 +532,9 @@ def report_excel(report_type, data):
                     d={"Sl No.":"","CAC Name":r["cac"],"MO Name":"","Target No":r["target"]};
                     if report_type!="V": d["Target Amt"]=""
                     d["Achi No"]=r["achi"]; d["Achi Amt"]=r["amt"]; d["Achi%"]=achievement(r["achi"],r["target"]); export.append(d)
-        pd.DataFrame(export).to_excel(writer,index=False,sheet_name={"I":"CO Format","II":"Retail","III":"Savings","IV":"Current Account","V":"Salary"}[report_type])
+        sheet={"I":"CO Format","II":"Retail","III":"Savings","IV":"Current Account","V":"Salary"}[report_type]
+        pd.DataFrame(export).map(_tidy).to_excel(writer,index=False,sheet_name=sheet)
+        _style_report_sheet(writer.book[sheet],money_all=(report_type=="II"))
     out.seek(0); return out.getvalue()
 
 
@@ -544,6 +646,22 @@ def _pdf_escape(text):
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
+_NUM_RE = re.compile(r"^(Rs\. )?-?[\d,]+(\.\d+)?%?$")
+
+
+def _is_num(v):
+    return bool(_NUM_RE.match(str(v).strip())) if str(v).strip() != "" else False
+
+
+def _numeric_columns(rows, ncols):
+    """A column is numeric (right aligned, header too) when most of its filled cells are figures."""
+    out=set()
+    for j in range(ncols):
+        vals=[r[j] for r in rows if j < len(r) and str(r[j]).strip()!=""]
+        if vals and sum(_is_num(v) for v in vals) >= 0.6*len(vals): out.add(j)
+    return out
+
+
 def _simple_table_pdf(title, subtitle, columns, rows, widths):
     """Create a small, dependency-free landscape PDF for report downloads."""
     page_w, page_h = 842, 595  # A4 landscape points
@@ -554,6 +672,8 @@ def _simple_table_pdf(title, subtitle, columns, rows, widths):
     header_h = 22
     usable_h = 535
     rows_per_page = max(1, int((usable_h - title_h - header_h - 20) // row_h))
+
+    num_cols=_numeric_columns(rows,len(columns))
 
     def content_stream(page_rows, page_no, total_pages):
         cmds=[]
@@ -566,8 +686,9 @@ def _simple_table_pdf(title, subtitle, columns, rows, widths):
         total_w=sum(widths)
         cmds += ["0.09 0.41 0.91 rg %d %d %d %d re f" % (margin_x, y-header_h+4, total_w, header_h)]
         x=margin_x
-        for col,w in zip(columns,widths):
-            cmds += ["BT /F2 7 Tf 1 1 1 rg 1 0 0 1 %d %d Tm (%s) Tj ET" % (x+4, y-9, _pdf_escape(col))]
+        for j,(col,w) in enumerate(zip(columns,widths)):
+            htx = x+w-4-len(_pdf_escape(col))*3.9 if j in num_cols else x+4
+            cmds += ["BT /F2 7 Tf 1 1 1 rg 1 0 0 1 %g %d Tm (%s) Tj ET" % (max(htx,x+2), y-9, _pdf_escape(col))]
             x += w
         y -= header_h
         for ridx,row in enumerate(page_rows):
@@ -576,9 +697,9 @@ def _simple_table_pdf(title, subtitle, columns, rows, widths):
             x=margin_x
             for j,(value,w) in enumerate(zip(row,widths)):
                 txt=_pdf_escape(value)
-                # Amount column is right-aligned in the PDF too.
-                if j==2:
-                    tw=max(0,len(txt)*4.0)
+                # Figures are right-aligned in the PDF too.
+                if j in num_cols and _is_num(value):
+                    tw=max(0,len(txt)*4.45)
                     tx=x+w-4-tw
                 else:
                     tx=x+4
@@ -665,6 +786,14 @@ def category_pdf(request, category, subproduct, mode, report_date):
             rows.append([r["status"],r["number"],f'Rs. {r["amount_lakh"]:.2f}',r["actual_number"],f'Rs. {r["actual_amount_lakh"]:.2f}',"",""])
     return _simple_table_pdf("Marketing Tracker Report",subtitle,["Sub-product / Status","Leads / No.","Lead Amount","Converted / Actual No.","Converted / Actual Amount","Pending","Pending Amount"],rows,[170,70,105,105,125,75,95])
 
+def _n0(x):
+    return f"{int(round(float(x or 0)))}"
+
+
+def _n2(x):
+    return f"{float(x or 0):.2f}"
+
+
 def pdf_table_report(report_type,data):
     """Dependency-free PDF for the Report menu. Uses the same row data as Excel."""
     titles={"I":"Report-I CO Format","II":"Report-II Retail","III":"Report-III Savings Account","IV":"Report-IV Current Account","V":"Report-V Salary Account","VI-D":"Report-VI Daily Report Deposit","VI-R":"Report-VI Daily Report Retail"}
@@ -686,20 +815,29 @@ def pdf_table_report(report_type,data):
         columns=["Sl No.","CAC Name","MO Name","SB Target","SB Ach.","SB Ach.%","CD Target","CD Ach.","CD Ach.%","Salary Target","Salary Ach.","Salary Ach.%","Retail Target","Retail Ach.","Retail Ach.%"]
         n=1
         for r in _report_rows("I",data):
-            rows.append([n,r["cac"],r["mo"],r["sb_t"],r["sb_a"],f'{achievement(r["sb_a"],r["sb_t"]):.1f}%',r["cd_t"],r["cd_a"],f'{achievement(r["cd_a"],r["cd_t"]):.1f}%',r["sal_t"],r["sal_a"],f'{achievement(r["sal_a"],r["sal_t"]):.1f}%',f'{r["ret_t"]:.2f}',f'{r["ret_a"]:.2f}',f'{achievement(r["ret_a"],r["ret_t"]):.1f}%'] if r["kind"]=="data" else ["",r["cac"],"Sub Total" if r["kind"]=="subtotal" else "Grand Total",r["sb_t"],r["sb_a"],f'{achievement(r["sb_a"],r["sb_t"]):.1f}%',r["cd_t"],r["cd_a"],f'{achievement(r["cd_a"],r["cd_t"]):.1f}%',r["sal_t"],r["sal_a"],f'{achievement(r["sal_a"],r["sal_t"]):.1f}%',f'{r["ret_t"]:.2f}',f'{r["ret_a"]:.2f}',f'{achievement(r["ret_a"],r["ret_t"]):.1f}%'])
+            head=[n,r["cac"],r["mo"]] if r["kind"]=="data" else ["",r["cac"],"Sub Total" if r["kind"]=="subtotal" else "Grand Total"]
+            rows.append(head+[_n0(r["sb_t"]),_n0(r["sb_a"]),f'{achievement(r["sb_a"],r["sb_t"]):.1f}%',_n0(r["cd_t"]),_n0(r["cd_a"]),f'{achievement(r["cd_a"],r["cd_t"]):.1f}%',_n0(r["sal_t"]),_n0(r["sal_a"]),f'{achievement(r["sal_a"],r["sal_t"]):.1f}%',_n2(r["ret_t"]),_n2(r["ret_a"]),f'{achievement(r["ret_a"],r["ret_t"]):.1f}%'])
             if r["kind"]=="data": n+=1
         widths=[35,60,105,45,45,45,45,45,45,50,50,50,55,55,50]
     elif report_type=="II":
-        columns=["Sl No.","CAC Name","Home Tgt","Home Act.","Home Ach.%","Vehicle Tgt","Vehicle Act.","Vehicle Ach.%","Edu/Personal Tgt","Edu/Personal Act.","Edu/Personal Ach.%","Retail Tgt","Retail Act.","Retail Ach.%"]
+        columns=["Sl No.","CAC Name","MO Name","Home Tgt","Home Act.","Home Ach.%","Vehicle Tgt","Vehicle Act.","Vehicle Ach.%","Edu/Personal Tgt","Edu/Personal Act.","Edu/Personal Ach.%","Retail Tgt","Retail Act.","Retail Ach.%"]
         n=1
+        EDU="Education Loan/Personal Loan"
         for r in _report_rows("II",data):
             if r["kind"]=="data":
-                rt=r["rt"]; ra=r["ra"]
-                rows.append([n,r["cac"],rt["Home Loan"],ra["Home Loan"],f'{achievement(ra["Home Loan"],rt["Home Loan"]):.1f}%',rt["Vehicle Loan"],ra["Vehicle Loan"],f'{achievement(ra["Vehicle Loan"],rt["Vehicle Loan"]):.1f}%',rt["Education Loan/Personal Loan"],ra["Education Loan/Personal Loan"],f'{achievement(ra["Education Loan/Personal Loan"],rt["Education Loan/Personal Loan"]):.1f}%',sum(rt.values()),ra["Total Retail"],f'{achievement(ra["Total Retail"],sum(rt.values())):.1f}%']); n+=1
+                rt=r["rt"]; ra=r["ra"]; head=[n,r["cac"],r["mo"]]; n+=1
+                tgt={"Home Loan":rt["Home Loan"],"Vehicle Loan":rt["Vehicle Loan"],EDU:rt[EDU]}; act={"Home Loan":ra["Home Loan"],"Vehicle Loan":ra["Vehicle Loan"],EDU:ra[EDU]}
+                tt=sum(rt.values()); aa=ra["Total Retail"]
             else:
-                v=r["vals"]; tt=sum(x[0] for x in v.values()); aa=sum(x[1] for x in v.values())
-                rows.append(["",r["cac"],v["Home Loan"][0],v["Home Loan"][1],f'{achievement(v["Home Loan"][1],v["Home Loan"][0]):.1f}%',v["Vehicle Loan"][0],v["Vehicle Loan"][1],f'{achievement(v["Vehicle Loan"][1],v["Vehicle Loan"][0]):.1f}%',v["Education Loan/Personal Loan"][0],v["Education Loan/Personal Loan"][1],f'{achievement(v["Education Loan/Personal Loan"][1],v["Education Loan/Personal Loan"][0]):.1f}%',tt,aa,f'{achievement(aa,tt):.1f}%'])
-        widths=[35,70,60,60,50,60,60,50,65,65,55,60,60,50]
+                v=r["vals"]; head=["",r["cac"],"Sub Total" if r["kind"]=="subtotal" else "Grand Total"]
+                tgt={k:v[k][0] for k in v}; act={k:v[k][1] for k in v}
+                tt=sum(x[0] for x in v.values()); aa=sum(x[1] for x in v.values())
+            row=list(head)
+            for k in ["Home Loan","Vehicle Loan",EDU]:
+                row+=[_n2(tgt[k]),_n2(act[k]),f'{achievement(act[k],tgt[k]):.1f}%']
+            row+=[_n2(tt),_n2(aa),f'{achievement(aa,tt):.1f}%']
+            rows.append(row)
+        widths=[28,58,92,52,52,46,52,52,46,58,58,50,52,52,46]
     else:
         key={"III":"SB","IV":"CD","V":"Salary"}[report_type]
         if report_type!="V":
@@ -709,9 +847,9 @@ def pdf_table_report(report_type,data):
         n=1
         for r in _report_rows(report_type,data):
             if report_type!="V":
-                rows.append([n,r["cac"],r["target"],r["achi"],f'{r["amt"]:.2f}'] if r["kind"]=="data" else ["",r["cac"],r["target"],r["achi"],f'{r["amt"]:.2f}'])
+                rows.append([n,r["cac"],_n0(r["target"]),_n0(r["achi"]),f'{r["amt"]:.2f}'] if r["kind"]=="data" else ["",r["cac"],_n0(r["target"]),_n0(r["achi"]),f'{r["amt"]:.2f}'])
             else:
-                rows.append([n,r["cac"],r["target"],r["achi"],f'{achievement(r["achi"],r["target"]):.1f}%'] if r["kind"]=="data" else ["",r["cac"],r["target"],r["achi"],f'{achievement(r["achi"],r["target"]):.1f}%'])
+                rows.append([n,r["cac"],_n0(r["target"]),_n0(r["achi"]),f'{achievement(r["achi"],r["target"]):.1f}%'] if r["kind"]=="data" else ["",r["cac"],_n0(r["target"]),_n0(r["achi"]),f'{achievement(r["achi"],r["target"]):.1f}%'])
             if r["kind"]=="data": n+=1
         widths=[40,100,80,80,80]
     return _simple_table_pdf(titles.get(report_type,"Marketing Tracker Report"),subtitle,columns,rows,widths)
@@ -737,7 +875,7 @@ async def me(request: Request):
 async def state(request: Request):
     if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
     if DATA["df"] is None: return {"loaded":False,"filename":None,"rows":0,"date_from":None,"report_date":None}
-    return {"loaded":True,"filename":DATA["filename"],"rows":len(DATA["df"]),"date_from":DATA["df"]["AssignedDate"].min().strftime("%Y-%m-%d"),"report_date":DATA["df"]["AssignedDate"].max().strftime("%Y-%m-%d"),"last_updated":DATA.get("last_updated")}
+    return {"loaded":True,"filename":DATA["filename"],"rows":len(DATA["df"]),"date_from":DATA["df"]["AssignedDate"].min().strftime("%Y-%m-%d"),"report_date":DATA["df"]["AssignedDate"].max().strftime("%Y-%m-%d"),"months":sorted({pd.Timestamp(x).strftime("%Y-%m") for x in DATA["df"]["AssignedDate"]}),"last_updated":DATA.get("last_updated")}
 
 @app.post("/api/upload")
 async def upload(request: Request,file:UploadFile=File(...)):
@@ -824,12 +962,12 @@ async def dashboard_data(request:Request,mode:str="monthly",report_date:str|None
         suboptions.append({"value":key,"label":clean_text(vals.iloc[0]) if len(vals) else key.title()})
     suboptions=sorted(suboptions,key=lambda x:x["label"].lower())
     if subproduct!="All Sub-products": category_base=category_base[category_base["Sub_Clean"]==normalize_name(subproduct)]
-    categories=["Savings","Current","Salary","Home Loan","Vehicle Loan","Education/Personal Loan","Retails","MSME","Agriculture","Insurance"]
+    categories=["Deposits","Savings","Current","Salary","Home Loan","Vehicle Loan","Education/Personal Loan","Retails","MSME","Agriculture","Insurance"]
     rows=[]
     for category in categories:
         sm=category_filtered_df(category_base,category)
         rows.append({"category":category,"summary":summary(sm)})
-    return {"mode":mode,"start":start.strftime("%Y-%m-%d"),"end":end.strftime("%Y-%m-%d"),"max_date":maxd.strftime("%Y-%m-%d"),"last_updated":DATA.get("last_updated"),"months":sorted({pd.Timestamp(x).strftime("%Y-%m") for x in DATA["df"]["AssignedDate"]}),"cards":rows,"subcategories":suboptions}
+    return {"total":summary(category_base),"mode":mode,"start":start.strftime("%Y-%m-%d"),"end":end.strftime("%Y-%m-%d"),"max_date":maxd.strftime("%Y-%m-%d"),"last_updated":DATA.get("last_updated"),"months":sorted({pd.Timestamp(x).strftime("%Y-%m") for x in DATA["df"]["AssignedDate"]}),"cards":rows,"subcategories":suboptions}
 
 @app.get("/api/daily-performance")
 async def daily_performance(request:Request,product:str="All Products",report_date:str|None=None):
@@ -843,7 +981,7 @@ async def daily_performance(request:Request,product:str="All Products",report_da
     rows=[]
     for day in pd.date_range(start,rd,freq="D"):
         q=base[base["AssignedDate"].dt.normalize()==day.normalize()]
-        rows.append({"date":day.strftime("%Y-%m-%d"),"label":day.strftime("%d %b"),"leads":int(len(q)),"converted":int((q["Status_Clean"]=="CONVERTED").sum()),"pending":int(q["Status_Clean"].isin(["OPEN","UNDER PROCESS"]).sum()),"rejection":int(q["Status_Clean"].isin(["NON CONVERTED","NOT INTERESTED","REJECTED","REJECT"]).sum())})
+        rows.append({"date":day.strftime("%Y-%m-%d"),"label":day.strftime("%d %b"),"leads":int(len(q)),"converted":int((q["Status_Clean"]=="CONVERTED").sum()),"pending":int(q["Status_Clean"].isin(["OPEN","UNDER PROCESS"]).sum()),"rejection":int(q["Status_Clean"].isin(REJECT_STATUSES).sum())})
     return {"product":product,"start":start.strftime("%Y-%m-%d"),"end":rd.strftime("%Y-%m-%d"),"rows":rows}
 
 @app.get("/api/notifications")
@@ -863,7 +1001,7 @@ async def notifications(request:Request,mode:str="monthly",report_date:str|None=
         df=df[df["MO_Clean"]==target_name]
     else:
         df=filter_df(DATA["df"],start,end,mo="All Officers")
-    rows=report_extended_rows(df); items=[]
+    rows=report_extended_rows(df,months_mult(mode,start,end)); items=[]
     for r in rows:
         if mo_filter and normalize_name(r.get("mo",""))!=normalize_name(mo_filter): continue
         if r["retail_target_cr"]>0 and r["retail_ach_pct"]<20: items.append({"type":"Retail","mo":r["mo"],"cac":r["cac"],"achievement":r["retail_ach_pct"],"target":r["retail_target_cr"],"actual":r["retail_actual_cr"]})
@@ -920,6 +1058,16 @@ def _admin_activity_snapshot(request:Request, date:str="", mo:str="All Officers"
 
 def _filter_admin_activity(status, plans, reports, co, show="all", focus="all"):
     show=(show or "all").lower(); focus=(focus or "all").lower()
+    if show == "yes":
+        def done(s):
+            if focus == "tour_plan": return s.get("tour_plan") == "Planned"
+            if focus in {"tour_report","tour_reports"}: return s.get("tour_report") == "Reported"
+            if focus in {"co","co_report","co_reports"}: return s.get("co_report") == "Reported"
+            return False
+        kept=[s for s in status if done(s)]
+        keys={(s.get("user_id"),s.get("date")) for s in kept}
+        def has(r): return (r.get("user_id"),r.get("date")) in keys
+        return kept, [r for r in plans if has(r)], [r for r in reports if has(r)], [r for r in co if has(r)]
     if show != "no": return status,plans,reports,co
     def missing(s):
         if focus in {"all","tour_plan"}: return s.get("tour_plan") == "Not Planned"
@@ -983,7 +1131,7 @@ def _activity_pdf(title, subtitle, columns, rows, right_indices=None):
             x=margin_x
             for j,(v,w) in enumerate(zip(row,base)):
                 txt=esc(v); tw=len(txt)*3.65
-                tx=x+w-3-tw if j in right_indices else x+3
+                tx=x+w-3-tw if (j in right_indices and _is_num(v)) else x+3
                 cmds.append(f"BT /F1 {font_size} Tf 0.08 0.12 0.22 rg 1 0 0 1 {tx:.1f} {y-10} Tm ({txt}) Tj ET"); x+=w
             cmds.append(f"0.88 0.89 0.92 RG 0.3 w {margin_x} {y-row_h+3} m {margin_x+total_w:.1f} {y-row_h+3} l S"); y-=row_h
         cmds.append(f"BT /F1 6.5 Tf 0.4 0.45 0.52 rg 1 0 0 1 {margin_x} 14 Tm (Page {pno} of {ptotal}) Tj ET")
@@ -1027,9 +1175,8 @@ async def download_admin_activity_excel(request:Request, report_type:str="monito
     elif report_type=="tour_report":
         cols=["Date","MO Name","CAC","Home Loan No.","Home Loan Amt.","Vehicle Loan No.","Vehicle Loan Amt.","Other Retail No.","Other Retail Amt.","Builder Tie-up","Dealer Tie-up","Deposits No.","Deposits Amt.","3rd Party No.","3rd Party Amt."]
         if show.lower()=="no" and date:
-            rows=[]
-            for x in status:
-                if x["tour_report"]=="Not Reported": rows.append([x["date"],x["mo_name"],x["cac"],0,0,0,0,0,0,0,0,0,0,0,0])
+            cols=["Date","MO Name","CAC","Daily Tour Report"]
+            rows=[[x["date"],x["mo_name"],x["cac"],"Not Reported"] for x in status if x["tour_report"]=="Not Reported"]
         else: rows=[[x.get("date",""),x.get("mo_name",""),x.get("cac",""),x.get("home_loan_no",0),x.get("home_loan_amt",0),x.get("vehicle_loan_no",0),x.get("vehicle_loan_amt",0),x.get("other_retail_no",0),x.get("other_retail_amt",0),x.get("builder_tieup",0),x.get("dealer_tieup",0),x.get("deposits_no",0),x.get("deposits_amt",0),x.get("third_party_no",0),x.get("third_party_amt",0)] for x in reports]
         filename="Daily_Tour_Reports.xlsx"
     else:
@@ -1061,7 +1208,9 @@ async def download_admin_activity_pdf(request:Request, report_type:str="monitori
         else: rows=[[x.get("date",""),x.get("mo_name",""),x.get("cac",""),x.get("category",""),x.get("plan","")] for x in plans]
     elif report_type=="tour_report":
         cols=["Date","MO Name","CAC","Home No.","Home Amt.","Vehicle No.","Vehicle Amt.","Other Retail No.","Other Retail Amt.","Builder","Dealer","Deposits No.","Deposits Amt.","3rd Party No.","3rd Party Amt."]; title="Daily Tour Reports"; fn="Daily_Tour_Reports.pdf"
-        if show.lower()=="no" and date: rows=[[x["date"],x["mo_name"],x["cac"],0,0,0,0,0,0,0,0,0,0,0,0] for x in status if x["tour_report"]=="Not Reported"]
+        if show.lower()=="no" and date:
+            cols=["Date","MO Name","CAC","Daily Tour Report"]
+            rows=[[x["date"],x["mo_name"],x["cac"],"Not Reported"] for x in status if x["tour_report"]=="Not Reported"]
         else: rows=[[x.get("date",""),x.get("mo_name",""),x.get("cac",""),x.get("home_loan_no",0),x.get("home_loan_amt",0),x.get("vehicle_loan_no",0),x.get("vehicle_loan_amt",0),x.get("other_retail_no",0),x.get("other_retail_amt",0),x.get("builder_tieup",0),x.get("dealer_tieup",0),x.get("deposits_no",0),x.get("deposits_amt",0),x.get("third_party_no",0),x.get("third_party_amt",0)] for x in reports]
     else:
         cols=["Date","MO Name","CAC","LMS","Google Form","CO Status"]; title="CO Reports"; fn="CO_Reports.pdf"
@@ -1086,6 +1235,84 @@ async def download_admin_activity_excel_slash(request:Request, report_type:str="
 async def download_admin_activity_pdf_slash(request:Request, report_type:str="monitoring", date:str="", mo:str="All Officers", show:str="all", focus:str="all"):
     return await download_admin_activity_pdf(request, report_type, date, mo, show, focus)
 
+REJECT_CATEGORIES=[("Savings","Savings Account"),("Current","Current Account"),("Salary","Salary Account"),("Home Loan","Home Loan"),("Vehicle Loan","Vehicle Loan"),("Education/Personal Loan","Education/Personal Loan"),("Retails","Retail Loan"),("MSME","MSME"),("Agriculture","Agriculture"),("Insurance","Insurance")]
+
+
+def _rej_pct(rej,total): return round(rej*100/total,1) if total else 0.0
+
+
+def rejection_data(request, mode, report_date, product=""):
+    """Rejection = LeadStatus Non Converted or Not Interested. % = rejected x 100 / all leads of that product."""
+    df=DATA["df"]
+    maxd=df["AssignedDate"].max(); rd=pd.Timestamp(report_date) if report_date else maxd; start,end=period_bounds(mode,rd)
+    base=filter_df(df,start,end,mo=effective_mo(request))
+    def counts(x): return int(len(x)), int(x["Status_Clean"].isin(REJECT_STATUSES).sum())
+    if not product:
+        rows=[]
+        for key,label in REJECT_CATEGORIES:
+            t,r=counts(category_filtered_df(base,key)); rows.append({"key":key,"label":label,"total":t,"rejected":r,"pct":_rej_pct(r,t)})
+        t,r=counts(base)
+        return start,end,{"rows":rows,"total":{"total":t,"rejected":r,"pct":_rej_pct(r,t)}}
+    pdf=category_filtered_df(base,product); rows=[]
+    for mo in roster():
+        m=pdf[pdf["MO_Clean"]==mo["name"].upper()]; t,r=counts(m)
+        if t: rows.append({"mo":mo["name"],"cac":mo["cac"],"total":t,"rejected":r,"pct":_rej_pct(r,t)})
+    rows.sort(key=lambda x:(-x["rejected"],-x["pct"],x["mo"]))
+    t,r=counts(pdf)
+    label=next((l for k,l in REJECT_CATEGORIES if k==product),product)
+    return start,end,{"product":product,"label":label,"rows":rows,"total":{"total":t,"rejected":r,"pct":_rej_pct(r,t)}}
+
+@app.get("/api/rejections")
+async def rejections(request:Request,mode:str="monthly",report_date:str|None=None,product:str=""):
+    if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
+    if DATA["df"] is None: return JSONResponse({"detail":"Upload an Excel file first."},status_code=400)
+    start,end,out=rejection_data(request,mode,report_date,product)
+    return {"mode":mode,"start":start.strftime("%Y-%m-%d"),"end":end.strftime("%Y-%m-%d"),**out}
+
+def _rejection_table(request,mode,report_date,product):
+    start,end,out=rejection_data(request,mode,report_date,product)
+    if product:
+        cols=["Sl No.","MO Name","CAC","Total Leads","Rejection No.","Rejection %"]
+        rows=[[i,r["mo"],r["cac"],r["total"],r["rejected"],r["pct"]] for i,r in enumerate(out["rows"],1)]
+        t=out["total"]; rows.append(["","Total","",t["total"],t["rejected"],t["pct"]])
+        title=f"Rejections - {out['label']} (MO wise)"
+    else:
+        cols=["Sl No.","Product","Total Leads","Rejection No.","Rejection %"]
+        rows=[[i,r["label"],r["total"],r["rejected"],r["pct"]] for i,r in enumerate(out["rows"],1)]
+        t=out["total"]; rows.append(["","Total",t["total"],t["rejected"],t["pct"]])
+        title="Rejections - Product wise"
+    return title,f"{mode.title()} - {fmt_dt(start)} to {fmt_dt(end)} - Rejection = Non Converted + Not Interested",cols,rows
+
+@app.get("/download/rejection-excel")
+async def download_rejection_excel(request:Request,mode:str="monthly",report_date:str|None=None,product:str=""):
+    if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
+    if DATA["df"] is None: return JSONResponse({"detail":"Upload an Excel file first."},status_code=400)
+    title,subtitle,cols,rows=_rejection_table(request,mode,report_date,product)
+    out=io.BytesIO()
+    with pd.ExcelWriter(out,engine="openpyxl") as writer:
+        pd.DataFrame(rows,columns=cols).to_excel(writer,index=False,sheet_name="Rejections")
+        ws=writer.book["Rejections"]; from openpyxl.styles import Alignment, Font
+        for c in ws[1]: c.font=Font(bold=True)
+        for idx,c in enumerate(ws[1],start=1):
+            pct="%" in str(c.value)
+            for row in ws.iter_rows(min_row=2,min_col=idx,max_col=idx):
+                cell=row[0]
+                if isinstance(cell.value,(int,float)): cell.alignment=Alignment(horizontal="right"); cell.number_format="0.0" if pct else "0"
+            ws.column_dimensions[c.column_letter].width=max(12,min(34,max(len(str(x[idx-1].value or "")) for x in ws.iter_rows(min_row=1))+2))
+        ws.freeze_panes="A2"
+    out.seek(0)
+    return Response(content=out.getvalue(),media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers={"Content-Disposition":'attachment; filename="Rejections.xlsx"'})
+
+@app.get("/download/rejection-pdf")
+async def download_rejection_pdf(request:Request,mode:str="monthly",report_date:str|None=None,product:str=""):
+    if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
+    if DATA["df"] is None: return JSONResponse({"detail":"Upload an Excel file first."},status_code=400)
+    title,subtitle,cols,rows=_rejection_table(request,mode,report_date,product)
+    pdf_rows=[[str(v) if not isinstance(v,float) else f"{v:.1f}%" for v in r] for r in rows]
+    widths=[40,200,90,90,90,90] if product else [40,230,110,110,110]
+    if product: widths=[35,190,90,80,90,80]
+    return Response(content=_simple_table_pdf(title,subtitle,cols,pdf_rows,widths),media_type="application/pdf",headers={"Content-Disposition":'attachment; filename="Rejections.pdf"'})
+
 @app.get("/api/app-version")
 async def app_version():
     return {"version":"MO Tracker V6","admin_activity_downloads":True}
@@ -1096,13 +1323,21 @@ async def save_tour_plan(request:Request):
     d=await request.json(); date=str(d.get("date",""));
     try: day=pd.Timestamp(date).date()
     except: return JSONResponse({"detail":"Invalid date."},status_code=400)
-    today=datetime.now(ZoneInfo("Asia/Kolkata")).date()
-    if day not in {today, today+pd.Timedelta(days=1)}: return JSONResponse({"detail":"Tour Plan can be made only for today or tomorrow."},status_code=400)
+    today=ist_today()
+    if day not in {today, today+pd.Timedelta(days=1).to_pytimedelta(), today+pd.Timedelta(days=2).to_pytimedelta()}: return JSONResponse({"detail":"Tour Plan can be made only for today and the next two days."},status_code=400)
     category=str(d.get("category","")); text=str(d.get("plan",""))[:2000]
     if category=="GVB": category="Govt. Business"
     if category not in {"Liability","Loans","Govt. Business","3rd Party"}: return JSONResponse({"detail":"Invalid tour category."},status_code=400)
     uid=request.session["username"]
     db.upsert_tour_plan({"user_id":uid,"mo_name":users()[uid].get("mo_name",uid),"date":date,"category":category,"plan":text}); return {"ok":True}
+
+@app.delete("/api/activity/tour-plan")
+async def delete_tour_plan(request:Request, date:str, category:str=""):
+    if not role_is_mo(request): return JSONResponse({"detail":"MO access required."},status_code=403)
+    try: day=pd.Timestamp(date).date()
+    except: return JSONResponse({"detail":"Invalid date."},status_code=400)
+    if day < ist_today(): return JSONResponse({"detail":"Past tour plans cannot be deleted."},status_code=400)
+    db.delete_tour_plan(request.session["username"], date, category or None); return {"ok":True}
 
 @app.post("/api/activity/tour-report")
 async def save_tour_report(request:Request):
@@ -1122,14 +1357,31 @@ async def save_tour_report(request:Request):
 @app.post("/api/activity/co-report")
 async def save_co_activity(request:Request):
     if not role_is_mo(request): return JSONResponse({"detail":"MO access required."},status_code=403)
-    d=await request.json(); date=str(d.get("date",""));
+    d=await request.json()
+    # CO reporting is for today only: whatever date the client sends, it is saved against today (IST).
+    date=ist_today().isoformat()
     item={"user_id":request.session["username"],"date":date,"lms":str(d.get("lms","No")),"google_form":str(d.get("google_form","No"))}
     db.upsert_co_report(item); return {"ok":True}
 
 @app.get("/api/targets")
 async def targets(request:Request):
     if not auth(request): return JSONResponse({"detail":"Login required."},status_code=401)
-    return {"targets":MONTHLY_TARGETS}
+    ros=roster()
+    return {"targets":{r["name"]:r["targets"] for r in ros},"officers":ros}
+
+@app.put("/api/targets")
+async def update_targets(request:Request):
+    if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
+    d=await request.json(); uid=str(d.get("user_id","")); info=users().get(uid)
+    if not info or info.get("role")!="mo": return JSONResponse({"detail":"Marketing Officer not found."},status_code=404)
+    new={"retail":{},"deposits":{}}
+    for group,keys in (("retail",RETAIL_KEYS),("deposits",DEPOSIT_KEYS)):
+        for k in keys:
+            try: v=float((d.get(group) or {}).get(k,0) or 0)
+            except (TypeError, ValueError): return JSONResponse({"detail":f"Invalid value for {k}."},status_code=400)
+            if v<0: return JSONResponse({"detail":f"{k} target cannot be negative."},status_code=400)
+            new[group][k]=round(v,2) if group=="retail" else int(round(v))
+    db.update_user_targets(uid,new); return {"ok":True,"targets":new}
 
 @app.get("/api/reports-full")
 async def reports_full(request:Request,mode:str="monthly",report_date:str|None=None,region:str="All Regions",product:str="All Products",mo:str="All Officers",branch:str="All Branches"):
@@ -1137,8 +1389,8 @@ async def reports_full(request:Request,mode:str="monthly",report_date:str|None=N
     if DATA["df"] is None: return JSONResponse({"detail":"Upload an Excel file first."},status_code=400)
     maxd=DATA["df"]["AssignedDate"].max(); rd=pd.Timestamp(report_date) if report_date else maxd
     start,end=period_bounds(mode,rd); mo=effective_mo(request,mo); df=filter_df(DATA["df"],start,end,region,product,mo,branch)
-    result=extended_report(df)
-    result.update({"mode":mode,"start":start.strftime("%Y-%m-%d"),"end":end.strftime("%Y-%m-%d"),"as_on":maxd.strftime("%Y-%m-%d")})
+    result=extended_report(df,months_mult(mode,start,end))
+    result.update({"months":months_mult(mode,start,end),"mode":mode,"start":start.strftime("%Y-%m-%d"),"end":end.strftime("%Y-%m-%d"),"as_on":maxd.strftime("%Y-%m-%d")})
     return result
 
 @app.get("/api/co-report")
@@ -1224,6 +1476,29 @@ async def change_password(request:Request):
 async def list_users(request:Request):
     if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
     us=users(); return {"users":[{"user_id":uid,"password":info.get("password",""),"role":info.get("role"),"name":info.get("name",info.get("mo_name",uid)),"cac":info.get("cac","")} for uid,info in us.items()]}
+
+@app.post("/api/users/mo")
+async def add_mo(request:Request):
+    if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
+    d=await request.json(); name=" ".join(str(d.get("name","")).split()); cac=" ".join(str(d.get("cac","")).split()) or "Bhopal"
+    if len(name)<3: return JSONResponse({"detail":"Enter the officer's full name."},status_code=400)
+    us=users()
+    if any((i.get("mo_name") or i.get("name") or "").upper()==name.upper() for i in us.values() if i.get("role")=="mo"):
+        return JSONResponse({"detail":"A Marketing Officer with this name already exists."},status_code=400)
+    nums=[int(u[2:]) for u,i in us.items() if i.get("role")=="mo" and u[2:].isdigit()]
+    uid=f"mo{(max(nums) if nums else 0)+1:02d}"
+    password=str(d.get("password") or "").strip() or f"MO{uid[2:]}@2026"
+    if len(password)<4: return JSONResponse({"detail":"Password must contain at least 4 characters."},status_code=400)
+    db.create_user({"user_id":uid,"password":password,"role":"mo","name":name,"mo_name":name,"cac":cac,"targets":DEFAULT_TARGET})
+    return {"ok":True,"user_id":uid,"password":password}
+
+@app.delete("/api/users/{user_id}")
+async def delete_mo(request:Request, user_id:str):
+    if not auth(request,"admin"): return JSONResponse({"detail":"Admin access required."},status_code=403)
+    info=users().get(user_id)
+    if not info: return JSONResponse({"detail":"User not found."},status_code=404)
+    if info.get("role")!="mo": return JSONResponse({"detail":"Only Marketing Officers can be deleted."},status_code=400)
+    db.delete_user(user_id); return {"ok":True}
 
 @app.post("/api/reset-user-password")
 async def reset_user_password(request:Request):

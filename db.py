@@ -28,14 +28,29 @@ def fetch_users() -> dict:
 
 
 def seed_missing_users(defaults: dict) -> dict:
-    """Insert any default user_id not yet present in the table. Mirrors the
-    old build_default_users()-seeding behaviour that ran against users.json."""
+    """Seed the default accounts, but only into an empty table. Seeding "any
+    missing" ids on every call would resurrect an MO the admin deleted."""
     current = fetch_users()
-    missing = [{"user_id": uid, **info} for uid, info in defaults.items() if uid not in current]
-    if missing:
-        supabase.table("users").insert(missing).execute()
+    if not current:
+        rows = [{"user_id": uid, **info} for uid, info in defaults.items()]
+        supabase.table("users").insert(rows).execute()
         current = fetch_users()
     return current
+
+
+def create_user(row: dict):
+    supabase.table("users").insert(row).execute()
+
+
+def delete_user(user_id: str):
+    """Remove a user together with their activity (foreign keys reference users)."""
+    for table in ("tour_plans", "tour_reports", "co_reports"):
+        supabase.table(table).delete().eq("user_id", user_id).execute()
+    supabase.table("users").delete().eq("user_id", user_id).execute()
+
+
+def update_user_targets(user_id: str, targets: dict):
+    supabase.table("users").update({"targets": targets}).eq("user_id", user_id).execute()
 
 
 def update_user_password(user_id: str, new_password: str):
@@ -60,6 +75,13 @@ def fetch_user_activity(user_id: str) -> dict:
 
 def upsert_tour_plan(item: dict):
     supabase.table("tour_plans").upsert(item, on_conflict="user_id,date,category").execute()
+
+
+def delete_tour_plan(user_id: str, date: str, category: str | None = None):
+    q = supabase.table("tour_plans").delete().eq("user_id", user_id).eq("date", date)
+    if category:
+        q = q.eq("category", category)
+    q.execute()
 
 
 def upsert_tour_report(item: dict):

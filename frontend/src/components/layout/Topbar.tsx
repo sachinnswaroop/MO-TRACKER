@@ -19,6 +19,11 @@ export function Topbar({ me, noticeCount }: { me: Me; noticeCount: number }) {
           <div className="truncate text-sm font-bold leading-tight text-ink-900">{displayName}</div>
           <div className="truncate text-xs text-ink-500">{roleLabel}</div>
         </div>
+        {me.role !== "mo" && (
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-extrabold text-brand-700 ring-1 ring-brand-200/70 sm:text-xs">
+            GKB@ Bhopal Zone
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <button

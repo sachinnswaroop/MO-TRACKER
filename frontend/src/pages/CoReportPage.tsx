@@ -12,7 +12,7 @@ import { ResponsiveFilters } from "../components/ui/ResponsiveFilters";
 import { DataTable } from "../components/ui/DataTable";
 import { CoBreakdown } from "../components/co/CoBreakdown";
 import { Loading, Alert } from "../components/ui/Feedback";
-import { fmtDate, todayLocal } from "../lib/format";
+import { fmtDate, fmtMonthShort, todayLocal } from "../lib/format";
 
 type Mode = "monthly" | "cumulative";
 
@@ -70,6 +70,16 @@ export function CoReportPage() {
         </ResponsiveFilters>
       </div>
 
+      {mode === "monthly" && !coType.startsWith("VI") && (appState?.months?.length ?? 0) > 0 && (
+        <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <Tabs
+            value={date.slice(0, 7)}
+            onChange={(m) => setDate(m + "-01")}
+            options={(appState?.months ?? []).map((m) => ({ value: m, label: fmtMonthShort(m) }))}
+          />
+        </div>
+      )}
+
       <div className="scrollbar-none -mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <Tabs value={coType} onChange={(v) => setCoType(v as CoReportType)} options={CO_REPORT_TABS} />
       </div>
@@ -82,6 +92,9 @@ export function CoReportPage() {
             <b className="text-sm text-ink-900">{tabDef.title}</b>
             <div className="text-xs text-ink-500">
               {coType.startsWith("VI") ? `Date: ${fmtDate(data.date)}` : `${fmtDate(data.start)} to ${fmtDate(data.end)}`}
+              {mode === "cumulative" && !coType.startsWith("VI") && (data.months ?? 1) > 0 && (
+                <span> • Target = monthly target × {data.months ?? 1} month{(data.months ?? 1) === 1 ? "" : "s"}</span>
+              )}
             </div>
           </div>
           <CoBreakdown type={coType} rows={data.rows} />

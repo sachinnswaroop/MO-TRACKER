@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard,
-  ClipboardList,
+  House,
   FileBarChart,
   Clock,
   Bell,
@@ -11,6 +10,7 @@ import {
   Users,
   UserCog,
 } from "lucide-react";
+import { ActivityUserIcon } from "../icons";
 import type { Role } from "../../lib/types";
 import type { Tone } from "../../lib/tones";
 
@@ -27,12 +27,12 @@ export interface NavItem {
 
 export function navItemsForRole(role: Role): NavItem[] {
   const items: NavItem[] = [
-    { to: "/dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, tone: "blue", tab: true, group: "tools" },
+    { to: "/dashboard", label: "Dashboard", shortLabel: "Home", icon: House, tone: "blue", tab: true, group: "tools" },
     {
       to: "/activity",
       label: role === "mo" ? "MO Activity" : "MO Activity Monitor",
       shortLabel: "Activity",
-      icon: ClipboardList,
+      icon: ActivityUserIcon,
       tone: "green",
       tab: true,
       group: "tools",

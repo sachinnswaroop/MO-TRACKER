@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
-  CalendarDays,
-  ChevronDown,
   ChevronRight,
   Clock,
   FileSpreadsheet,
+  LayoutGrid,
   PieChart,
+  PiggyBank,
   ShieldX,
-  SlidersHorizontal,
+  Store,
   Upload,
   Hourglass,
   ClipboardCheck,
@@ -20,7 +20,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { apiGet } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import type { CategoryReportData, DailyPerformanceData, DashboardData } from "../lib/types";
+import type { DailyPerformanceData, DashboardData } from "../lib/types";
 import type { Tone } from "../lib/tones";
 import { productCards } from "../lib/productCards";
 import { Segmented } from "../components/ui/Segmented";
@@ -29,13 +29,14 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { IconGridItem } from "../components/ui/IconTile";
 import { BottomSheet } from "../components/ui/BottomSheet";
+import { HeroSlider, type HeroSlide, type Mode } from "../components/dashboard/HeroSlider";
+import { RejectionsPanel } from "../components/rejections/RejectionsPanel";
 import { LeadShareDonut } from "../components/charts/LeadShareDonut";
 import { DailyPerformanceChart } from "../components/charts/DailyPerformanceChart";
 import { SimpleBarList } from "../components/charts/SimpleBarList";
-import { fmtDate, fmtMonthLabel, fmtMoney } from "../lib/format";
+import { fmtDate, fmtMonthLabel } from "../lib/format";
 import { Alert, Loading } from "../components/ui/Feedback";
 
-type Mode = "monthly" | "daily" | "cumulative";
 type Insight = "daily" | "share" | "pending" | "rejected";
 
 interface Shortcut {
@@ -65,18 +66,6 @@ export function DashboardPage() {
         product: productFilter,
         subproduct,
       }),
-  });
-
-  const { data: total } = useQuery({
-    queryKey: ["dashboard-total", mode, date, productFilter, subproduct],
-    queryFn: () =>
-      apiGet<CategoryReportData>("/api/category-report", {
-        category: productFilter,
-        subproduct,
-        mode,
-        report_date: date || undefined,
-      }),
-    enabled: !!date,
   });
 
   const { data: daily } = useQuery({
@@ -113,10 +102,15 @@ export function DashboardPage() {
 
   const wanted = productFilter !== "All Products" ? productCards.filter((p) => p.key === productFilter) : productCards;
   const summaryByKey = Object.fromEntries(data.cards.map((c) => [c.category, c.summary]));
-  const s = total?.summary;
+  const s = data.total;
 
+  // Always describes the figures that are on screen (from the server's resolved period).
   const periodLabel =
-    mode === "monthly" && date ? fmtMonthLabel(date.slice(0, 7)) : mode === "daily" ? fmtDate(date) : `Up to ${fmtDate(date)}`;
+    mode === "monthly"
+      ? fmtMonthLabel(data.end.slice(0, 7))
+      : mode === "daily"
+        ? fmtDate(data.end)
+        : `${fmtDate(data.start)} – ${fmtDate(data.end)}`;
 
   const shortcuts: Shortcut[] =
     me?.role === "mo"
@@ -124,18 +118,18 @@ export function DashboardPage() {
           { label: "Tour Plan", to: "/activity?tab=plan", icon: Route, tone: "green" },
           { label: "Tour Report", to: "/activity?tab=tour", icon: ClipboardCheck, tone: "cyan" },
           { label: "CO Report", to: "/activity?tab=co", icon: FileSpreadsheet, tone: "teal" },
-          { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+          { label: "Pending", to: "/pending-leads", icon: Clock, tone: "yellow" },
         ]
       : me?.role === "admin"
         ? [
             { label: "Upload", to: "/upload", icon: Upload, tone: "indigo" },
-            { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+            { label: "Pending", to: "/pending-leads", icon: Clock, tone: "yellow" },
             { label: "CO Report", to: "/co-report", icon: FileSpreadsheet, tone: "teal" },
             { label: "Targets", to: "/targets", icon: Target, tone: "red" },
           ]
         : [
             { label: "Activity", to: "/activity", icon: ClipboardCheck, tone: "green" },
-            { label: "Pending Leads", to: "/pending-leads", icon: Clock, tone: "yellow" },
+            { label: "Pending", to: "/pending-leads", icon: Clock, tone: "yellow" },
             { label: "CO Report", to: "/co-report", icon: FileSpreadsheet, tone: "teal" },
             { label: "Alerts", to: "/notifications", icon: Hourglass, tone: "pink" },
           ];
@@ -143,62 +137,36 @@ export function DashboardPage() {
   const insights: { id: Insight; title: string; sub: string; icon: LucideIcon; bg: string; fg: string }[] = [
     { id: "daily", title: "Daily Performance", sub: "Last 7 days", icon: BarChart3, bg: "from-sky-100 to-sky-50", fg: "text-sky-600" },
     { id: "share", title: "Lead Share", sub: "By product", icon: PieChart, bg: "from-emerald-100 to-emerald-50", fg: "text-emerald-600" },
-    { id: "pending", title: "Pending Leads", sub: s ? `${s.pending} open` : "By product", icon: Hourglass, bg: "from-amber-100 to-amber-50", fg: "text-amber-600" },
-    { id: "rejected", title: "Rejections", sub: s ? `${s.rejected} rejected` : "By product", icon: ShieldX, bg: "from-rose-100 to-rose-50", fg: "text-rose-600" },
+    { id: "pending", title: "Pending Leads", sub: `${s.pending} open`, icon: Hourglass, bg: "from-amber-100 to-amber-50", fg: "text-amber-600" },
+    { id: "rejected", title: "Rejections", sub: `${s.rejected} rejected`, icon: ShieldX, bg: "from-rose-100 to-rose-50", fg: "text-rose-600" },
   ];
 
   const donutData = wanted.map((p) => ({ name: p.key, value: summaryByKey[p.key]?.total_leads ?? 0 }));
   const pendingData = wanted.map((p) => ({ label: p.name, value: summaryByKey[p.key]?.pending ?? 0 }));
-  const rejectedData = wanted.map((p) => ({ label: p.name, value: summaryByKey[p.key]?.rejected ?? 0 }));
 
   function openProduct(key: string) {
     navigate(`/reports/category/${encodeURIComponent(key)}?mode=${mode}&date=${encodeURIComponent(date)}`);
   }
 
-  const kpis = [
-    { label: "Leads", value: s?.total_leads, amount: s?.lead_amount_lakh },
-    { label: "Converted", value: s?.converted, amount: s?.converted_actual_amount_lakh },
-    { label: "Pending", value: s?.pending, amount: s?.pending_amount_lakh },
+  const slides: HeroSlide[] = [
+    { key: "All Products", title: "All Products", icon: LayoutGrid, summary: s },
+    { key: "Deposits", title: "Deposits", icon: PiggyBank, summary: summaryByKey["Deposits"] },
+    { key: "Retails", title: "Retail Loans", icon: Store, summary: summaryByKey["Retails"] },
+    ...productCards.map((p) => ({ key: p.key, title: p.name, icon: p.icon, summary: summaryByKey[p.key] })),
   ];
 
   return (
     <div className="space-y-4">
-      {/* Hero: greeting + the three numbers that matter */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-400 via-brand-500 to-brand-700 p-4 text-white shadow-[var(--shadow-brand)] sm:p-6">
-        <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full bg-white/20 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-16 -left-6 h-40 w-40 rounded-full bg-cyan-200/25 blur-2xl" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[13px] font-medium text-white/80">Good day,</p>
-            <h1 className="font-display truncate text-2xl font-extrabold sm:text-3xl">{me?.mo_name || me?.username}</h1>
-          </div>
-          <button
-            onClick={() => setFilterOpen(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3 py-2 text-[13px] font-semibold backdrop-blur transition-colors active:bg-white/30"
-          >
-            <CalendarDays size={15} />
-            {periodLabel}
-            <ChevronDown size={14} />
-          </button>
-        </div>
-
-        <div className="relative mt-4 grid grid-cols-3 gap-2">
-          {kpis.map((k) => (
-            <div key={k.label} className="rounded-2xl bg-white/18 px-3 py-2.5 backdrop-blur-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">{k.label}</div>
-              <div className="font-display text-[22px] font-extrabold leading-tight">{k.value ?? "–"}</div>
-              <div className="text-[11px] text-white/75">{k.amount !== undefined ? `₹ ${fmtMoney(k.amount)} L` : " "}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative mt-3 flex items-center justify-between text-[11px] text-white/70">
-          <span>{data.last_updated ? `Updated ${data.last_updated}` : ""}</span>
-          <button onClick={() => setFilterOpen(true)} className="flex items-center gap-1 font-semibold text-white">
-            <SlidersHorizontal size={12} /> Filters
-          </button>
-        </div>
-      </section>
+      <HeroSlider
+        name={me?.mo_name || me?.username || ""}
+        mode={mode}
+        onMode={setMode}
+        periodLabel={periodLabel}
+        updated={data.last_updated}
+        slides={slides}
+        onOpenFilters={() => setFilterOpen(true)}
+        onOpenSlide={(key) => (key === "All Products" ? navigate("/reports") : openProduct(key))}
+      />
 
       {/* Shortcuts */}
       <Card className="!p-3">
@@ -325,7 +293,9 @@ export function DashboardPage() {
         onClose={() => setInsight(null)}
         title={insights.find((i) => i.id === insight)?.title ?? ""}
       >
-        <p className="mb-3 text-xs text-ink-400">{periodLabel}</p>
+        <p className="mb-3 text-xs text-ink-400">
+          {mode === "daily" ? "Daily" : mode === "monthly" ? "Monthly" : "Cumulative"} • {periodLabel}
+        </p>
         {insight === "daily" && (
           <>
             <Select value={dailyProduct} onChange={(e) => setDailyProduct(e.target.value)} className="mb-3">
@@ -341,7 +311,7 @@ export function DashboardPage() {
         )}
         {insight === "share" && <LeadShareDonut data={donutData} />}
         {insight === "pending" && <SimpleBarList items={pendingData} color="#f5a30b" />}
-        {insight === "rejected" && <SimpleBarList items={rejectedData} color="#f43f5e" />}
+        {insight === "rejected" && <RejectionsPanel mode={mode} date={date} />}
       </BottomSheet>
     </div>
   );

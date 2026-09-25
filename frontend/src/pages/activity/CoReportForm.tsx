@@ -7,11 +7,12 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { DataTable } from "../../components/ui/DataTable";
 import type { CoActivityReport } from "../../lib/types";
-import { todayLocal } from "../../lib/format";
+import { fmtDate, todayLocal } from "../../lib/format";
 
 export function CoReportForm({ history }: { history: CoActivityReport[] }) {
   const qc = useQueryClient();
-  const [date, setDate] = useState(todayLocal());
+  // CO reporting is for today only.
+  const date = todayLocal();
   const [lms, setLms] = useState("Yes");
   const [googleForm, setGoogleForm] = useState("Yes");
   const [error, setError] = useState("");
@@ -45,8 +46,8 @@ export function CoReportForm({ history }: { history: CoActivityReport[] }) {
               <option>No</option>
             </Select>
           </Field>
-          <Field label="Date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Field label="Date (today only)">
+            <Input type="text" value={fmtDate(date)} readOnly disabled />
           </Field>
         </div>
         <div className="mt-4">
