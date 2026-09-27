@@ -5,9 +5,15 @@ export function DailyPerformanceChart({ rows }: { rows: DailyPerformanceRow[] })
   return (
     <div className="h-52 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 8, right: 4, left: -20, bottom: 0 }} barGap={2}>
+        <BarChart data={rows} margin={{ top: 8, right: 4, left: -6, bottom: 0 }} barGap={2}>
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#7b879a" }} axisLine={{ stroke: "#e7ebf2" }} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: "#7b879a" }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <YAxis
+            tick={{ fontSize: 10, fill: "#7b879a" }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+            label={{ value: "No. of total leads", angle: -90, position: "insideLeft", offset: 8, style: { fontSize: 8, fill: "#a3adbd" } }}
+          />
           <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="leads" name="Leads Generated" fill="#2778e8" radius={[3, 3, 0, 0]} />
