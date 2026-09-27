@@ -1,6 +1,5 @@
 import { Bell, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Logo } from "../Logo";
 import type { Me } from "../../lib/types";
 
 export function Topbar({ me, noticeCount }: { me: Me; noticeCount: number }) {
@@ -27,7 +26,7 @@ export function Topbar({ me, noticeCount }: { me: Me; noticeCount: number }) {
         )}
 
         <div className="ml-auto flex items-center gap-2.5">
-          <Logo size={30} />
+          <img src="/logo-mark.png" alt="" width={26} height={26} className="shrink-0" />
           <button
             onClick={() => navigate("/notifications")}
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-ink-50 text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-600"
