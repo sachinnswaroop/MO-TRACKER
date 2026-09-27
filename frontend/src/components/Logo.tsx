@@ -1,8 +1,8 @@
-/** The Central Bank of India app icon (frontend/public/icon-512.png), used wherever the app's mark appears. */
+/** The Central Bank of India app icon (frontend/public/icon-192-v2.png), used wherever the app's mark appears. */
 export function Logo({ size = 44, className = "" }: { size?: number; className?: string }) {
   return (
     <img
-      src="/icon-192.png"
+      src="/icon-192-v2.png"
       width={size}
       height={size}
       alt="MO Tracker"
