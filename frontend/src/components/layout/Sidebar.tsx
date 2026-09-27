@@ -1,13 +1,15 @@
 import { NavLink } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { Download, LogOut } from "lucide-react";
 import { navItemsForRole } from "./navItems";
 import { Logo } from "../Logo";
 import { toneGradient } from "../../lib/tones";
+import { useInstall } from "../../lib/pwa";
 import type { Me } from "../../lib/types";
 
-/** Desktop-only navigation. Phones use the bottom bar + the More screen. */
+/** Desktop-only navigation. Phones use the bottom bar + the More screen (which has its own Install app tile). */
 export function Sidebar({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const items = navItemsForRole(me.role);
+  const install = useInstall();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-ink-200/70 bg-white px-3 pb-4 pt-5 md:flex">
@@ -38,6 +40,17 @@ export function Sidebar({ me, onLogout }: { me: Me; onLogout: () => void }) {
             <span className="truncate">{item.label}</span>
           </NavLink>
         ))}
+        {!install.installed && install.canPrompt && (
+          <button
+            onClick={() => install.prompt()}
+            className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-white">
+              <Download size={15} />
+            </span>
+            Install app
+          </button>
+        )}
         <button
           onClick={onLogout}
           className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-ink-600 transition-colors hover:bg-danger-50 hover:text-danger-600"
