@@ -15,6 +15,9 @@ export interface Metric {
   conv?: number;
   amount?: number;
   convAmount?: number;
+  /** This metric is itself the sum of the other metrics in the same list (e.g. "Total retail" =
+   * Home + Vehicle + Edu/Personal). When present, it — not an average of every line — is the score. */
+  isTotal?: boolean;
 }
 
 export interface Entry {
@@ -29,8 +32,17 @@ export function pctOf(m: Metric): number | null {
   return m.target && m.target > 0 ? (m.achieved / m.target) * 100 : null;
 }
 
-/** Overall score of an entry: average achievement % over metrics that have a target. */
+/**
+ * Overall score of an entry. When one metric is marked `isTotal` (it already combines the
+ * others, e.g. Report II's "Total retail" = Home + Vehicle + Edu/Personal), that metric's own
+ * achievement % IS the score — averaging it together with the parts it's made of would count
+ * the same rupees twice and let a tiny, easily-overshot target (like Edu/Personal) drag an
+ * amount-weighted total wildly off. Otherwise (independent metrics, e.g. Report I's SB / CD /
+ * Salary / Retail loans) the score is the plain average achievement % across all of them.
+ */
 export function scoreOf(metrics: Metric[]): number | null {
+  const total = metrics.find((m) => m.isTotal);
+  if (total) return pctOf(total);
   const ps = metrics.map(pctOf).filter((p): p is number => p !== null);
   return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
 }
@@ -90,7 +102,7 @@ export function buildEntries(type: CoReportType, rows: unknown[]): { family: CoF
         { key: "Home", label: "Home Loan", achieved: ra["Home Loan"], target: rt["Home Loan"], unit: "cr" },
         { key: "Vehicle", label: "Vehicle Loan", achieved: ra["Vehicle Loan"], target: rt["Vehicle Loan"], unit: "cr" },
         { key: "Edu", label: "Edu / Personal Loan", achieved: ra["Education Loan/Personal Loan"], target: rt["Education Loan/Personal Loan"], unit: "cr" },
-        { key: "Retail", label: "Total retail", achieved: ra["Total Retail"], target: sum(rt), unit: "cr" },
+        { key: "Retail", label: "Total retail", achieved: ra["Total Retail"], target: sum(rt), unit: "cr", isTotal: true },
       ];
     } else {
       const key = ({ III: "SB", IV: "CD", V: "Salary" } as const)[type as "III" | "IV" | "V"];
